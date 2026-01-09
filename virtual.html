@@ -47,6 +47,7 @@
             z-index: 10;
             background: rgba(0, 0, 0, 0.85);
             transition: opacity 1s ease-out;
+            opacity: 0; /* Hidden initially for splash */
         }
 
         .hud-text {
@@ -196,6 +197,14 @@
             font-size: 0.8rem;
             pointer-events: none;
         }
+
+        /* Splash Screen Animation */
+        @keyframes textGlow {
+            0% { text-shadow: 0 0 10px #00ffea; opacity: 0; transform: scale(0.9); }
+            20% { text-shadow: 0 0 25px #00ffea; opacity: 1; transform: scale(1); }
+            80% { text-shadow: 0 0 25px #00ffea; opacity: 1; transform: scale(1); }
+            100% { text-shadow: 0 0 5px #00ffea; opacity: 0; transform: scale(1.1); }
+        }
     </style>
 </head>
 <body>
@@ -204,6 +213,18 @@
         <canvas id="output_canvas"></canvas>
         <video class="input_video"></video>
         
+        <!-- SPLASH SCREEN -->
+        <div id="splash-screen" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none;">
+            <div style="animation: textGlow 2.5s ease-in-out forwards; text-align: center;">
+                <div style="color: #00ffea; font-size: 2.5rem; letter-spacing: 5px; font-weight: bold; margin-bottom: 15px;">
+                    NEURAL PIXEL SPACE
+                </div>
+                <div style="color: white; font-size: 1.2rem; letter-spacing: 3px; font-family: 'Courier New', Courier, monospace;">
+                    MADE BY DEEPANSHU SHARMA
+                </div>
+            </div>
+        </div>
+
         <div id="achievement-popup">
             🏆 ACHIEVEMENT UNLOCKED<br>
             <span id="ach-text" style="font-size:0.9rem; color:#fff;">SYSTEM BALANCED</span>
@@ -254,6 +275,7 @@
         const rgbBtn = document.getElementById('rgb-btn');
         const achievementPopup = document.getElementById('achievement-popup');
         const achText = document.getElementById('ach-text');
+        const splashScreen = document.getElementById('splash-screen');
 
         let particles = [];
         let width, height;
@@ -279,7 +301,8 @@
             galaxy: false,
             solar: false,
             starwars: false,
-            blackhole: false
+            blackhole: false,
+            birth: false
         };
 
         // Gestures Timers
@@ -934,7 +957,6 @@
                     sequenceActive = false; 
                     handStatus.innerText = "SEQUENCE COMPLETE";
                 } else {
-                    // Update HUD text ONLY here (once per frame)
                     if (timeElapsed < 5.0) handStatus.innerText = "STAR WARS";
                     else if (timeElapsed < 12.0) handStatus.innerText = ">> IGNITION <<";
                     else if (timeElapsed < 16.0) handStatus.innerText = ">> CROSS SABERS <<";
@@ -986,7 +1008,6 @@
                         handStatus.innerText = "AWAITING CONFIRMATION...";
                     } 
                     if (hand1State === 'ALIGNING' && hand2State === 'ALIGNING') {
-                        // Double alignment
                         handStatus.innerText = "ALIGNING...";
                     }
                     drawCursor(targetPosition.x, targetPosition.y, hand1State, hand1State);
@@ -1180,7 +1201,11 @@
                     hand1State = getHandState(h1Raw, 1);
                     hand2State = getHandState(h2Raw, 2);
                     
-                    if (hand1State === 'ALIGNING' && hand2State === 'ALIGNING') {
+                    // Prioritize ALIGNING for Dual Hand Interaction
+                    const isLeftAligning = (hand1State === 'ALIGNING' || hand1State === 'OK_SIGN');
+                    const isRightAligning = (hand2State === 'ALIGNING' || hand2State === 'OK_SIGN');
+
+                    if (isLeftAligning && isRightAligning) {
                         if (dualGalaxyTimer === 0) dualGalaxyTimer = Date.now();
                         else if (Date.now() - dualGalaxyTimer > 3000) {
                             interactionMode = 'TWO_BLACK_HOLE';
@@ -1190,18 +1215,21 @@
                         dualGalaxyTimer = 0;
                     }
 
-                    // Reset Galaxy mode if gestures lost
-                    if (interactionMode === 'TWO_BLACK_HOLE' && (hand1State !== 'ALIGNING' || hand2State !== 'ALIGNING')) {
+                    // Reset Black Hole mode if gestures lost
+                    if (interactionMode === 'TWO_BLACK_HOLE' && (!isLeftAligning || !isRightAligning)) {
                         interactionMode = 'TWO_INDEPENDENT';
                     }
 
-                    if (hand1State === 'ALIGNING') {
-                        if (okTimer1 === 0) okTimer1 = Date.now();
-                        else if (Date.now() - okTimer1 > 1000) hand1State = 'OK_SIGN';
-                    }
-                    if (hand2State === 'ALIGNING') {
-                        if (okTimer2 === 0) okTimer2 = Date.now();
-                        else if (Date.now() - okTimer2 > 1000) hand2State = 'OK_SIGN';
+                    // Check Single Hand Timers for Solar System (Visual Feedback only if not dual)
+                    if (interactionMode !== 'TWO_BLACK_HOLE') {
+                        if (hand1State === 'ALIGNING') {
+                            if (okTimer1 === 0) okTimer1 = Date.now();
+                            else if (Date.now() - okTimer1 > 1000) hand1State = 'OK_SIGN';
+                        }
+                        if (hand2State === 'ALIGNING') {
+                            if (okTimer2 === 0) okTimer2 = Date.now();
+                            else if (Date.now() - okTimer2 > 1000) hand2State = 'OK_SIGN';
+                        }
                     }
 
                     if (interactionMode !== 'TWO_BLACK_HOLE') {
@@ -1222,17 +1250,9 @@
                             const y2 = h2Raw[9].y * height;
                             targetPosition.x = x1; targetPosition.y = y1;
                             targetPosition2.x = x2; targetPosition2.y = y2;
-                            
-                            if (hand1State === 'ALIGNING' && hand2State === 'ALIGNING') {
-                                handStatus.innerText = "HOLD FOR SINGULARITY...";
-                            } else if (hand1State === 'ALIGNING' || hand2State === 'ALIGNING') {
-                                handStatus.innerText = "ALIGNING PLANETS...";
-                            } else {
-                                handStatus.innerText = `L: ${hand1State} | R: ${hand2State}`;
-                            }
                         }
                     } else {
-                        // In BLACK HOLE mode, update positions
+                         // Update positions for black hole
                         const x1 = (1 - h1Raw[9].x) * width; 
                         const y1 = h1Raw[9].y * height;
                         const x2 = (1 - h2Raw[9].x) * width; 
@@ -1289,12 +1309,17 @@
             initParticles();
             window.addEventListener('resize', resize);
 
-            let progress = 0;
-            const loadInterval = setInterval(() => {
-                progress += 5;
-                if(progress > 90) clearInterval(loadInterval);
-                loadingBar.style.width = `${progress}%`;
-            }, 50);
+            // Handle Splash Screen
+            const splash = document.getElementById('splash-screen');
+            setTimeout(() => {
+                splash.style.opacity = 0;
+                let progress = 0;
+                const loadInterval = setInterval(() => {
+                    progress += 5;
+                    if(progress > 90) clearInterval(loadInterval);
+                    loadingBar.style.width = `${progress}%`;
+                }, 50);
+            }, 2500); 
 
             const camera = new Camera(videoElement, {
                 onFrame: async () => {
