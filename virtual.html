@@ -294,6 +294,23 @@
         let hand2State = 'GRAVITY'; 
 
         let simulationStarted = false;
+
+        // --- IDLE ANIMATION CONTROLLER ---
+        const idleController = {
+            state: 'WAITING', // WAITING, PLAYING
+            lastActionTime: Date.now(),
+            waitDuration: 10000,
+            currentAnim: null,
+            animStartTime: 0,
+            animIndex: 0, // Added for sequential playback
+            
+            // Animation Objects
+            blackHole: { x: 0, y: 0, vx: 0, vy: 0, active: false },
+            solarFlyby: { x: 0, y: 0, vx: 0, vy: 0, active: false },
+            cometDirection: { x: 1, y: 1 },
+            
+            animations: ['BLACK_HOLE', 'COMET_SHOWER', 'QUESTION_MARK', 'SOLAR_FLYBY']
+        };
         
         // Achievements
         let unlockedAchievements = {
@@ -366,6 +383,43 @@
             return { x: x * scale, y: y * scale };
         }
 
+        function getQuestionMarkPoint(t, scale, cx, cy) {
+            // t is 0..1
+            // Curve: 0.0 - 0.5
+            // Line: 0.5 - 0.7
+            // Dot: 0.7 - 0.8
+            // Text "NEXT": 0.8 - 1.0
+            
+            let x = 0, y = 0;
+            
+            if (t < 0.5) {
+                // Hook
+                const nt = t / 0.5;
+                const angle = -Math.PI + (nt * 1.5 * Math.PI); // -180 to 90
+                const radius = scale * 10;
+                x = cx + Math.cos(angle) * radius;
+                y = (cy - scale * 10) + Math.sin(angle) * radius;
+                if(nt > 0.8) x -= (nt-0.8)*20; // tuck in
+            } else if (t < 0.7) {
+                // Vertical Line
+                const nt = (t - 0.5) / 0.2;
+                x = cx;
+                y = cy + (nt * scale * 10);
+            } else if (t < 0.8) {
+                // Dot
+                const nt = (t - 0.7) / 0.1;
+                const angle = nt * Math.PI * 4;
+                x = cx + Math.cos(angle) * 5;
+                y = cy + scale * 15 + Math.sin(angle) * 5;
+            } else {
+                // "NEXT" text (simplified to a line of particles below)
+                const nt = (t - 0.8) / 0.2;
+                x = (cx - scale * 8) + (nt * scale * 16);
+                y = cy + scale * 25;
+            }
+            return {x, y};
+        }
+
         function getPeaceHandPoint(t, scale) {
             let x, y;
             if (t < 0.5) { 
@@ -378,7 +432,7 @@
                 y = 0 - (15 * lt);    
             } else { 
                 const lt = (t - 0.75) / 0.25;
-                x = 2.5 + (2 * lt);   
+                x = 2.5 + (2 * lt);    
                 y = 0 - (15 * lt);    
             }
             return {x: x * scale, y: y * scale};
@@ -478,7 +532,7 @@
             return {x, y, color};
         }
 
-        function getSolarSystemPoint(particle, centerTime, scale) {
+        function getSolarSystemPoint(particle, centerTime, scale, cx=0, cy=0) {
             const totalPlanets = SOLAR_SYSTEM.length;
             const planetIdx = Math.floor(particle.tParamLinear * totalPlanets);
             const p = SOLAR_SYSTEM[planetIdx] || SOLAR_SYSTEM[0];
@@ -521,7 +575,7 @@
                 }
             }
 
-            return { x: x * scale, y: y * scale, color: color };
+            return { x: cx + x * scale, y: cy + y * scale, color: color };
         }
 
         // --- Particle Class ---
@@ -726,6 +780,7 @@
             }
 
             update() {
+                this.customColor = null; 
                 this.vx *= SPACE_DRAG;
                 this.vy *= SPACE_DRAG;
                 
@@ -749,6 +804,75 @@
                         this.applySequence(timeElapsed);
                     }
                     return; 
+                }
+
+                // --- IDLE ANIMATIONS LOGIC ---
+                if (interactionMode === 'PLAYING_ANIMATION') {
+                    const animTime = (Date.now() - idleController.animStartTime) / 1000;
+
+                    if (idleController.currentAnim === 'BLACK_HOLE') {
+                        // Physics: Gravity Well that moves
+                        const bh = idleController.blackHole;
+                        const dx = bh.x - this.x;
+                        const dy = bh.y - this.y;
+                        const distSq = dx*dx + dy*dy;
+                        const dist = Math.sqrt(distSq);
+                        const angle = Math.atan2(dy, dx);
+                        
+                        // Slightly weaker gravity than before, but wider reach
+                        const gForce = 1500 / (distSq + 2000); 
+                        this.vx += Math.cos(angle) * gForce;
+                        this.vy += Math.sin(angle) * gForce;
+                        
+                        if (dist < 40) {
+                            // Event Horizon Sucking Effect
+                            this.vx += (Math.random()-0.5) * 15;
+                            this.vy += (Math.random()-0.5) * 15;
+                            this.customColor = '#000000'; // Disappear into void
+                        }
+                    } 
+                    else if (idleController.currentAnim === 'COMET_SHOWER') {
+                        // High velocity diagonal movement
+                        const dir = idleController.cometDirection;
+                        const targetVx = dir.x * 20;
+                        const targetVy = dir.y * 20;
+                        // Particles accelerate towards this velocity
+                        this.vx += (targetVx - this.vx) * 0.1;
+                        this.vy += (targetVy - this.vy) * 0.1;
+                        
+                        // Add some sparkle
+                        if(Math.random() > 0.9) this.customColor = '#FFFFFF';
+                        
+                        // Wrap around logic specific to comets
+                        if(this.x > width + 50) this.x = -50;
+                        if(this.x < -50) this.x = width + 50;
+                        if(this.y > height + 50) this.y = -50;
+                        if(this.y < -50) this.y = height + 50;
+                    }
+                    else if (idleController.currentAnim === 'QUESTION_MARK') {
+                        const scale = 15;
+                        const cx = width / 2;
+                        const cy = height / 2 - 50;
+                        const pt = getQuestionMarkPoint(this.tParamLinear, scale, cx, cy);
+                        const dx = pt.x - this.x;
+                        const dy = pt.y - this.y;
+                        
+                        // Gentle lerp
+                        this.vx += dx * 0.05;
+                        this.vy += dy * 0.05;
+                        this.customColor = '#00FFEA';
+                    }
+                    else if (idleController.currentAnim === 'SOLAR_FLYBY') {
+                        const sf = idleController.solarFlyby;
+                        // Use existing solar system point generator, but offset by moving center
+                        const pt = getSolarSystemPoint(this, Date.now()/1000, 1, sf.x, sf.y);
+                        const dx = pt.x - this.x;
+                        const dy = pt.y - this.y;
+                        this.vx += dx * 0.08;
+                        this.vy += dy * 0.08;
+                        this.customColor = pt.color;
+                    }
+                    return;
                 }
 
                 if (interactionMode === 'TWO_BLACK_HOLE') {
@@ -920,6 +1044,10 @@
                     if(star.x > width) star.x = 0;
                     canvasCtx.fillRect(star.x, star.y, star.size * 20, star.size); 
                 } else {
+                    // Slight parallax in normal modes
+                    star.x += star.speed * 0.1;
+                    if(star.x > width) star.x = 0;
+                    
                     canvasCtx.globalAlpha = star.alpha * 0.5;
                     canvasCtx.fillRect(star.x, star.y, star.size, star.size); 
                     canvasCtx.globalAlpha = 1.0;
@@ -942,12 +1070,127 @@
             pCount.innerText = PARTICLE_COUNT;
         }
 
+        function updateIdleState() {
+            if (interactionMode !== 'IDLE' && interactionMode !== 'PLAYING_ANIMATION') {
+                idleController.state = 'WAITING';
+                idleController.lastActionTime = Date.now();
+                return;
+            }
+
+            // Logic to transition between WAITING and PLAYING
+            if (idleController.state === 'WAITING') {
+                interactionMode = 'IDLE';
+                handStatus.innerText = "IDLE: DRIFTING...";
+                
+                if (Date.now() - idleController.lastActionTime > idleController.waitDuration) {
+                    // Sequential selection
+                    idleController.currentAnim = idleController.animations[idleController.animIndex];
+                    idleController.animIndex = (idleController.animIndex + 1) % idleController.animations.length;
+                    
+                    idleController.state = 'PLAYING';
+                    idleController.animStartTime = Date.now();
+                    interactionMode = 'PLAYING_ANIMATION';
+                    
+                    // Init Animation Specifics
+                    if (idleController.currentAnim === 'BLACK_HOLE') {
+                        const bh = idleController.blackHole;
+                        bh.active = true;
+                        // Start from random edge
+                        const side = Math.floor(Math.random() * 4);
+                        if(side===0) { bh.x = -100; bh.y = Math.random()*height; } // Left
+                        if(side===1) { bh.x = width+100; bh.y = Math.random()*height; } // Right
+                        if(side===2) { bh.x = Math.random()*width; bh.y = -100; } // Top
+                        if(side===3) { bh.x = Math.random()*width; bh.y = height+100; } // Bottom
+                        
+                        // Target center-ish opposite side
+                        const tx = width - bh.x + (Math.random()-0.5)*200;
+                        const ty = height - bh.y + (Math.random()-0.5)*200;
+                        const angle = Math.atan2(ty - bh.y, tx - bh.x);
+                        const speed = 2 + Math.random(); // Slower speed
+                        bh.vx = Math.cos(angle) * speed;
+                        bh.vy = Math.sin(angle) * speed;
+                    } 
+                    else if (idleController.currentAnim === 'COMET_SHOWER') {
+                         // Random direction
+                         const angle = Math.random() * PI2;
+                         idleController.cometDirection.x = Math.cos(angle);
+                         idleController.cometDirection.y = Math.sin(angle);
+                    }
+                    else if (idleController.currentAnim === 'SOLAR_FLYBY') {
+                        const sf = idleController.solarFlyby;
+                        sf.active = true;
+                        sf.y = height * 0.3 + Math.random() * height * 0.4;
+                        sf.x = -200;
+                        sf.vx = 3; // Slow horizontal drift
+                        sf.vy = (Math.random()-0.5) * 0.5;
+                    }
+                }
+            } else if (idleController.state === 'PLAYING') {
+                const elapsed = Date.now() - idleController.animStartTime;
+                let finished = false;
+
+                if (idleController.currentAnim === 'BLACK_HOLE') {
+                    const bh = idleController.blackHole;
+                    bh.x += bh.vx;
+                    bh.y += bh.vy;
+                    // Check bounds (with padding to allow full exit)
+                    if ((bh.x < -200 && bh.vx < 0) || (bh.x > width+200 && bh.vx > 0) || 
+                        (bh.y < -200 && bh.vy < 0) || (bh.y > height+200 && bh.vy > 0)) {
+                        finished = true;
+                    }
+                    
+                    // Draw Enhanced Black Hole (Accretion Disk)
+                    const grad = canvasCtx.createRadialGradient(bh.x, bh.y, 10, bh.x, bh.y, 60);
+                    grad.addColorStop(0, "black");
+                    grad.addColorStop(0.4, "rgba(0,0,0,1)");
+                    grad.addColorStop(0.5, "rgba(255, 100, 50, 0.8)"); // Accretion inner
+                    grad.addColorStop(0.6, "rgba(100, 0, 255, 0.2)"); // Accretion outer
+                    grad.addColorStop(1, "rgba(0,0,0,0)");
+                    
+                    canvasCtx.fillStyle = grad;
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(bh.x, bh.y, 60, 0, PI2);
+                    canvasCtx.fill();
+                    
+                    // Photon Sphere Ring
+                    canvasCtx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+                    canvasCtx.lineWidth = 2;
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(bh.x, bh.y, 22, 0, PI2);
+                    canvasCtx.stroke();
+                } 
+                else if (idleController.currentAnim === 'COMET_SHOWER') {
+                    if (elapsed > 8000) finished = true;
+                } 
+                else if (idleController.currentAnim === 'QUESTION_MARK') {
+                    if (elapsed > 7000) finished = true;
+                }
+                else if (idleController.currentAnim === 'SOLAR_FLYBY') {
+                    const sf = idleController.solarFlyby;
+                    sf.x += sf.vx;
+                    sf.y += sf.vy;
+                    if (sf.x > width + 300) finished = true;
+                }
+
+                if (finished) {
+                    idleController.state = 'WAITING';
+                    idleController.lastActionTime = Date.now();
+                    idleController.currentAnim = null;
+                    interactionMode = 'IDLE'; 
+                    // initParticles() removed to prevent static refresh
+                }
+            }
+        }
+
         function animate() {
             const trailAlpha = interactionMode === 'TWO_WORMHOLE' ? 0.1 : 0.3; 
             canvasCtx.fillStyle = `rgba(5, 5, 5, ${trailAlpha})`;
             canvasCtx.fillRect(0, 0, width, height);
 
             if (isRGBMode) globalHue = (globalHue + 5) % 360;
+
+            // --- ANIMATION STATE MACHINE UPDATE ---
+            updateIdleState();
 
             drawStars();
 
@@ -964,13 +1207,18 @@
                     else if (timeElapsed < 22.0) handStatus.innerText = ">> EXPLOSION <<";
                     else handStatus.innerText = ">> COCKPIT VIEW ONLINE <<";
                 }
-            } else if (interactionMode === 'TWO_BLACK_HOLE') {
+            } 
+            else if (interactionMode === 'PLAYING_ANIMATION') {
+                handStatus.innerText = "IDLE: " + idleController.currentAnim.replace('_', ' ');
+            }
+            else if (interactionMode === 'TWO_BLACK_HOLE') {
                 handStatus.innerText = ">> SINGULARITY FORMED <<";
             } else if (interactionMode !== 'IDLE') {
                 canvasCtx.lineWidth = 3;
                 
                 const drawCursor = (x, y, label, state) => {
                     canvasCtx.beginPath();
+                    canvasCtx.arc(x, y, 20, 0, PI2);
                     let color = '#00FFEA';
                     if (state === 'REPULSOR') color = '#FF0000';
                     else if (state === 'SPIDER') color = '#FF3333';
@@ -984,7 +1232,6 @@
                     else if (state === 'ALIGNING') color = '#FFCC00';
                     
                     canvasCtx.strokeStyle = color;
-                    canvasCtx.arc(x, y, 20, 0, PI2);
                     canvasCtx.stroke();
                     
                     canvasCtx.fillStyle = "white";
@@ -1013,10 +1260,10 @@
                     drawCursor(targetPosition.x, targetPosition.y, hand1State, hand1State);
                     drawCursor(targetPosition2.x, targetPosition2.y, hand2State, hand2State);
                 } else if (interactionMode === 'ONE_SIMPLE') {
-                     drawCursor(targetPosition.x, targetPosition.y, hand1State, hand1State);
-                     
-                     if (hand1State === 'OK_SIGN') {
-                         SOLAR_SYSTEM.forEach((p, idx) => {
+                      drawCursor(targetPosition.x, targetPosition.y, hand1State, hand1State);
+                      
+                      if (hand1State === 'OK_SIGN') {
+                          SOLAR_SYSTEM.forEach((p, idx) => {
                              if (idx > 0) { 
                                  canvasCtx.beginPath();
                                  canvasCtx.strokeStyle = `rgba(255, 255, 255, 0.15)`;
@@ -1024,10 +1271,10 @@
                                  canvasCtx.arc(targetPosition.x, targetPosition.y, p.r, 0, PI2);
                                  canvasCtx.stroke();
                              }
-                         });
-                     } else if (hand1State === 'SW_CONFIRM') {
-                         handStatus.innerText = "AWAITING CONFIRMATION... (HOLD 2s)";
-                     }
+                          });
+                      } else if (hand1State === 'SW_CONFIRM') {
+                          handStatus.innerText = "AWAITING CONFIRMATION... (HOLD 2s)";
+                      }
                 } else {
                     let label = interactionMode.replace('TWO_', '');
                     drawCursor(targetPosition.x, targetPosition.y, label, label);
@@ -1173,6 +1420,16 @@
 
             const numHands = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
             
+            if (numHands > 0) {
+                idleController.lastActionTime = Date.now();
+                // Reset to waiting if interrupted
+                if (idleController.state === 'PLAYING') {
+                     idleController.state = 'WAITING';
+                     idleController.currentAnim = null;
+                     interactionMode = 'IDLE'; // Ensure we reset mode if interrupted by hand
+                }
+            }
+
             let finding3Fingers = false;
             
             if (numHands > 0) {
@@ -1285,8 +1542,10 @@
                 else handStatus.innerText = "SINGLE: GRAVITY";
             
             } else {
-                interactionMode = 'IDLE';
-                handStatus.innerText = "Searching...";
+                // Let updateIdleState handle the mode switching
+                if (interactionMode !== 'PLAYING_ANIMATION') {
+                    interactionMode = 'IDLE';
+                }
             }
         }
 
