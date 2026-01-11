@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic DFA Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Segoe UI', monospace, sans-serif;
+            color: #e2e8f0;
+        }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            transition: margin-left 0.3s ease;
+        }
+        
+        /* Sidebar UI */
+        #sidebar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 320px;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.95);
+            border-right: 1px solid #334155;
+            z-index: 20;
+            transform: translateX(0);
+            transition: transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+        }
+        #sidebar.collapsed {
+            transform: translateX(-320px);
+        }
+        
+        .sidebar-content {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        /* Toggle Button */
+        #toggle-btn {
+            position: absolute;
+            left: 320px;
+            top: 20px;
+            background: #1e293b;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 0 8px 8px 0;
+            cursor: pointer;
+            border: 1px solid #334155;
+            border-left: none;
+            z-index: 21;
+            transition: left 0.3s ease;
+        }
+        #sidebar.collapsed + #toggle-btn {
+            left: 0;
+        }
+
+        /* Inputs */
+        .input-group { margin-bottom: 20px; }
+        label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+        
+        input[type="text"] {
+            background: #020617;
+            border: 1px solid #334155;
+            color: #38bdf8;
+            padding: 12px;
+            border-radius: 8px;
+            width: 100%;
+            font-family: monospace;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+        input[type="text"]:focus { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2); }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+        .btn-primary { background: #38bdf8; color: #0f172a; border: none; }
+        .btn-primary:hover { background: #0ea5e9; }
+        .btn-secondary { background: transparent; border: 1px solid #475569; color: #94a3b8; }
+        .btn-secondary:hover { border-color: #cbd5e1; color: #fff; }
+
+        /* Results List */
+        .queue-item {
+            background: rgba(30, 41, 59, 0.5);
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            border-left: 3px solid #64748b;
+            font-family: monospace;
+            display: flex;
+            justify-content: space-between;
+        }
+        .queue-item.accepted { border-left-color: #22c55e; color: #86efac; }
+        .queue-item.rejected { border-left-color: #ef4444; color: #fca5a5; }
+        .queue-item.processing { border-left-color: #38bdf8; background: rgba(56, 189, 248, 0.1); }
+
+        /* Legend */
+        .legend-overlay {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            text-align: right;
+            pointer-events: none;
+            color: #64748b;
+            font-size: 0.8rem;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar UI -->
+    <div id="sidebar">
+        <div class="sidebar-content">
+            <h1 class="text-xl font-bold text-white mb-1">DFA Generator</h1>
+            <p class="text-xs text-slate-400 mb-6">Build Minimum Finite Automata from Regex</p>
+
+            <div class="input-group">
+                <label>Regular Expression (Σ = {a, b})</label>
+                <input type="text" id="regexInput" value="(a|b)*aa" placeholder="e.g. (a|b)*aab">
+                <p class="text-[10px] text-slate-500 mt-1">Supported: ( ) * | (concatenation)</p>
+            </div>
+            
+            <button onclick="generateMachine()" class="btn-primary mb-6">Generate Automata</button>
+
+            <div class="border-t border-slate-800 my-4"></div>
+
+            <div class="input-group">
+                <label>Test Strings (Comma Separated)</label>
+                <input type="text" id="testStrings" placeholder="aa, bab, aaaa">
+            </div>
+
+            <div class="flex gap-2 mb-4">
+                <button onclick="runBatch()" class="btn-secondary flex-1">Test</button>
+                <button onclick="generateRandomTests()" class="btn-secondary w-12" title="Random">🎲</button>
+            </div>
+
+            <div id="stats" class="flex justify-between text-sm font-bold mb-2 hidden">
+                <span class="text-green-400">✓ <span id="acc-count">0</span></span>
+                <span class="text-red-400">✗ <span id="rej-count">0</span></span>
+            </div>
+
+            <div id="queue-list" class="text-xs max-h-[300px] overflow-y-auto">
+                <!-- Items go here -->
+            </div>
+        </div>
+    </div>
+    
+    <div id="toggle-btn" onclick="toggleSidebar()">◀</div>
+
+    <!-- Visualization Canvas -->
+    <div id="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+        <div class="legend-overlay">
+            <div class="mb-1"><span class="inline-block w-2 h-2 rounded-full bg-cyan-400 mr-2"></span>Start Node</div>
+            <div class="mb-1"><span class="inline-block w-2 h-2 rounded-full bg-purple-500 mr-2"></span>Accept Node</div>
+            <div><span class="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-2"></span>Runner</div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. REGEX TO NFA ENGINE ---
+        
+        let currentStateId = 0;
+        
+        function preprocessRegex(regex) {
+            let clean = regex.replace(/\s+/g, '');
+            let res = "";
+            for (let i = 0; i < clean.length; i++) {
+                let c1 = clean[i];
+                res += c1;
+                if (i + 1 < clean.length) {
+                    let c2 = clean[i + 1];
+                    let isC1End = (/[a-zA-Z0-9*)]/.test(c1));
+                    let isC2Start = (/[a-zA-Z0-9(]/.test(c2));
+                    if (isC1End && isC2Start) {
+                        res += '.';
+                    }
+                }
+            }
+            return res;
+        }
+
+        function toPostfix(regex) {
+            let output = [];
+            let stack = [];
+            let precedence = { '*': 3, '.': 2, '|': 1, '(': 0 };
+
+            for (let char of regex) {
+                if (/[a-zA-Z0-9]/.test(char)) {
+                    output.push(char);
+                } else if (char === '(') {
+                    stack.push(char);
+                } else if (char === ')') {
+                    while (stack.length && stack[stack.length-1] !== '(') {
+                        output.push(stack.pop());
+                    }
+                    stack.pop();
+                } else {
+                    while (stack.length && precedence[stack[stack.length-1]] >= precedence[char]) {
+                        output.push(stack.pop());
+                    }
+                    stack.push(char);
+                }
+            }
+            while (stack.length) output.push(stack.pop());
+            return output.join('');
+        }
+
+        let stateCounter = 0;
+        function createState(isAccept = false) {
+            return { id: stateCounter++, isAccept: isAccept, transitions: {} };
+        }
+        function addTransition(from, to, char) {
+            if (!from.transitions[char]) from.transitions[char] = [];
+            from.transitions[char].push(to);
+        }
+
+        function toNFA(postfix) {
+            stateCounter = 0;
+            let stack = [];
+
+            for (let char of postfix) {
+                if (char === '*') {
+                    let nfa = stack.pop();
+                    let start = createState();
+                    let end = createState(true);
+                    addTransition(start, nfa.start, 'ε');
+                    addTransition(start, end, 'ε');
+                    addTransition(nfa.end, nfa.start, 'ε');
+                    addTransition(nfa.end, end, 'ε');
+                    nfa.end.isAccept = false;
+                    stack.push({ start, end });
+                } else if (char === '|') {
+                    let b = stack.pop();
+                    let a = stack.pop();
+                    let start = createState();
+                    let end = createState(true);
+                    addTransition(start, a.start, 'ε');
+                    addTransition(start, b.start, 'ε');
+                    addTransition(a.end, end, 'ε');
+                    addTransition(b.end, end, 'ε');
+                    a.end.isAccept = false;
+                    b.end.isAccept = false;
+                    stack.push({ start, end });
+                } else if (char === '.') {
+                    let b = stack.pop();
+                    let a = stack.pop();
+                    addTransition(a.end, b.start, 'ε');
+                    a.end.isAccept = false;
+                    stack.push({ start: a.start, end: b.end });
+                } else {
+                    let start = createState();
+                    let end = createState(true);
+                    addTransition(start, end, char);
+                    stack.push({ start, end });
+                }
+            }
+            return stack.pop();
+        }
+
+        // --- 2. NFA TO DFA & MINIMIZATION ---
+
+        function epsilonClosure(states) {
+            let stack = [...states];
+            let closure = new Set(states.map(s => s.id));
+            let result = [...states];
+            while(stack.length) {
+                let s = stack.pop();
+                if(s.transitions['ε']) {
+                    for(let next of s.transitions['ε']) {
+                        if(!closure.has(next.id)) {
+                            closure.add(next.id);
+                            result.push(next);
+                            stack.push(next);
+                        }
+                    }
+                }
+            }
+            return result.sort((a,b) => a.id - b.id);
+        }
+
+        function move(states, char) {
+            let result = [];
+            for(let s of states) {
+                if(s.transitions[char]) result.push(...s.transitions[char]);
+            }
+            return result;
+        }
+
+        function getSetId(states) {
+            return states.map(s => s.id).join(',');
+        }
+
+        function nfaToDfa(nfa) {
+            const alphabet = ['a', 'b'];
+            let dfaMap = new Map();
+            let dfaQueue = [];
+            let dfaCounter = 0;
+
+            let initialSet = epsilonClosure([nfa.start]);
+            let initialKey = getSetId(initialSet);
+            
+            let dfaStart = { 
+                id: dfaCounter++, 
+                key: initialKey, 
+                set: initialSet, 
+                isAccept: initialSet.some(s => s.isAccept), 
+                transitions: {} 
+            };
+            
+            dfaMap.set(initialKey, dfaStart);
+            dfaQueue.push(dfaStart);
+
+            while(dfaQueue.length) {
+                let curr = dfaQueue.shift();
+                for(let char of alphabet) {
+                    let moved = move(curr.set, char);
+                    let closure = epsilonClosure(moved);
+                    if(closure.length === 0) continue; 
+
+                    let key = getSetId(closure);
+                    let destState;
+
+                    if(dfaMap.has(key)) {
+                        destState = dfaMap.get(key);
+                    } else {
+                        destState = {
+                            id: dfaCounter++,
+                            key: key,
+                            set: closure,
+                            isAccept: closure.some(s => s.isAccept),
+                            transitions: {}
+                        };
+                        dfaMap.set(key, destState);
+                        dfaQueue.push(destState);
+                    }
+                    curr.transitions[char] = destState.id;
+                }
+            }
+            return Array.from(dfaMap.values()).map(s => ({
+                id: s.id,
+                isAccept: s.isAccept,
+                transitions: s.transitions
+            }));
+        }
+
+        // --- HOPCROFT-LIKE MINIMIZATION ---
+
+        function minimizeDFA(states) {
+            // 1. Initial Partition: [Non-Accepting, Accepting]
+            let groups = [];
+            let p0 = states.filter(s => !s.isAccept).map(s => s.id);
+            let p1 = states.filter(s => s.isAccept).map(s => s.id);
+            if(p0.length) groups.push(p0);
+            if(p1.length) groups.push(p1);
+            
+            const alphabet = ['a', 'b'];
+            let changed = true;
+            
+            while(changed) {
+                changed = false;
+                let newGroups = [];
+                
+                for(let group of groups) {
+                    if(group.length <= 1) {
+                        newGroups.push(group);
+                        continue;
+                    }
+                    
+                    // Group states by their transition signatures
+                    let signatures = {}; 
+                    
+                    for(let id of group) {
+                        let s = states.find(st => st.id === id);
+                        let sig = alphabet.map(char => {
+                            let targetId = s.transitions[char];
+                            // If target is undefined (trap), use -1
+                            if(targetId === undefined) return -1;
+                            // Find which group the target belongs to
+                            return groups.findIndex(g => g.includes(targetId));
+                        }).join('|');
+                        
+                        if(!signatures[sig]) signatures[sig] = [];
+                        signatures[sig].push(id);
+                    }
+                    
+                    let split = Object.values(signatures);
+                    if(split.length > 1) changed = true;
+                    newGroups.push(...split);
+                }
+                groups = newGroups;
+            }
+            
+            // 2. Build Minimized DFA
+            // Find the group containing original start state (0)
+            let startGroupIndex = groups.findIndex(g => g.includes(0));
+            
+            // Reorder groups so start group is index 0
+            if(startGroupIndex > 0) {
+                [groups[0], groups[startGroupIndex]] = [groups[startGroupIndex], groups[0]];
+            }
+
+            // Map old ID -> New Group ID
+            let oldToNew = {};
+            groups.forEach((g, newId) => {
+                g.forEach(oldId => oldToNew[oldId] = newId);
+            });
+
+            let newStates = groups.map((g, i) => {
+                let representative = states.find(s => s.id === g[0]);
+                let newTrans = {};
+                for(let char of alphabet) {
+                    let oldTarget = representative.transitions[char];
+                    if(oldTarget !== undefined) {
+                        newTrans[char] = oldToNew[oldTarget];
+                    }
+                }
+                return {
+                    id: i,
+                    label: `q${i}`,
+                    isAccept: representative.isAccept,
+                    transitions: newTrans
+                };
+            });
+
+            return newStates;
+        }
+
+        // --- 3. LAYOUT ENGINE ---
+        
+        function layoutGraph(nodes) {
+            let layers = {};
+            let visited = new Set();
+            let queue = [{id: 0, layer: 0}];
+            visited.add(0);
+            let maxLayer = 0;
+
+            // BFS Layering
+            let tempQueue = [...queue];
+            while(tempQueue.length) {
+                let curr = tempQueue.shift();
+                if(!layers[curr.layer]) layers[curr.layer] = [];
+                layers[curr.layer].push(curr.id);
+                maxLayer = Math.max(maxLayer, curr.layer);
+
+                let node = nodes.find(n => n.id === curr.id);
+                if(node) {
+                    for(let char in node.transitions) {
+                        let nextId = node.transitions[char];
+                        if(!visited.has(nextId)) {
+                            visited.add(nextId);
+                            tempQueue.push({id: nextId, layer: curr.layer + 1});
+                        }
+                    }
+                }
+            }
+
+            nodes.forEach(n => {
+                if(!visited.has(n.id)) {
+                    if(!layers[maxLayer+1]) layers[maxLayer+1] = [];
+                    layers[maxLayer+1].push(n.id);
+                }
+            });
+
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const leftMargin = 320;
+            const availableWidth = width - leftMargin;
+            const layerCount = Object.keys(layers).length;
+            const xStep = availableWidth / (layerCount + 1);
+
+            nodes.forEach(n => {
+                let lIndex = -1;
+                for(let l in layers) { if(layers[l].includes(n.id)) { lIndex = parseInt(l); break; } }
+                
+                let tx = leftMargin + (xStep * (lIndex + 1)) - (xStep/2);
+                let nodesInLayer = layers[lIndex];
+                let posInLayer = nodesInLayer.indexOf(n.id);
+                let yStep = height / (nodesInLayer.length + 1);
+                let ty = yStep * (posInLayer + 1);
+
+                n.x = tx;
+                n.y = ty;
+            });
+            return nodes;
+        }
+
+        // --- 4. MAIN & ANIMATION ---
+
+        let DFA_DATA = null;
+        let particles = [];
+        let runner = null;
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            if(DFA_DATA) initParticles(); 
+        }
+        window.addEventListener('resize', resize);
+
+        function generateMachine() {
+            let regex = document.getElementById('regexInput').value;
+            if(!regex) return;
+
+            try {
+                let proc = preprocessRegex(regex);
+                let post = toPostfix(proc);
+                let nfa = toNFA(post);
+                let dfaRaw = nfaToDfa(nfa);
+                
+                // --- MINIMIZATION STEP ---
+                let dfaMinimized = minimizeDFA(dfaRaw);
+
+                let vizStates = layoutGraph(dfaMinimized);
+                let vizTrans = [];
+
+                vizStates.forEach(s => {
+                    for(let char in s.transitions) {
+                        let targetId = s.transitions[char];
+                        let target = vizStates.find(st => st.id === targetId);
+                        
+                        let type = 'line';
+                        let curveDir = 0;
+
+                        if(s.id === targetId) {
+                            type = 'self-loop';
+                            curveDir = (s.id % 2 === 0) ? 1 : -1;
+                        } 
+                        else {
+                            let back = false;
+                            for(let c in target.transitions) if(target.transitions[c] === s.id) back = true;
+                            if(back) { type = 'curve'; curveDir = 1; }
+                        }
+
+                        vizTrans.push({ from: s.id, to: targetId, char: char, type: type, curveDir: curveDir });
+                    }
+                });
+
+                DFA_DATA = { states: vizStates, transitions: vizTrans };
+                initParticles();
+                runner = new Runner();
+
+            } catch(e) {
+                console.error(e);
+                alert("Invalid Regex. Try simple patterns like (a|b)*aa");
+            }
+        }
+
+        // --- 5. ENHANCED PARTICLE SYSTEM ---
+
+        class OrbitParticle {
+            constructor(parentX, parentY, radius, color) {
+                this.parentX = parentX;
+                this.parentY = parentY;
+                this.radius = radius;
+                this.angle = Math.random() * Math.PI * 2;
+                this.speed = (Math.random() * 0.02) + 0.01;
+                this.color = color;
+                this.size = Math.random() * 2 + 1;
+            }
+            update() {
+                this.angle += this.speed;
+            }
+            draw(ctx) {
+                let px = this.parentX + Math.cos(this.angle) * this.radius;
+                let py = this.parentY + Math.sin(this.angle) * this.radius;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(px, py, this.size, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        class FlowParticle {
+            constructor(p0, p1, p2, p3, speed) {
+                this.p0 = p0; this.p1 = p1; this.p2 = p2; this.p3 = p3;
+                this.t = Math.random();
+                this.speed = speed;
+                this.size = Math.random() * 1.5 + 0.5;
+            }
+            update() {
+                this.t += this.speed;
+                if(this.t > 1) this.t = 0;
+            }
+            draw(ctx) {
+                let pos = getBezierPoint(this.t, this.p0, this.p1, this.p2, this.p3);
+                ctx.fillStyle = '#475569';
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, this.size, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        function getBezierPoint(t, p0, p1, p2, p3) {
+            let u = 1-t, tt=t*t, uu=u*u, uuu=uu*u, ttt=tt*t;
+            return {
+                x: uuu*p0.x + 3*uu*t*p1.x + 3*u*tt*p2.x + ttt*p3.x,
+                y: uuu*p0.y + 3*uu*t*p1.y + 3*u*tt*p2.y + ttt*p3.y
+            };
+        }
+
+        function getControlPoints(s1, s2, type, dir) {
+            let p0 = {x: s1.x, y: s1.y};
+            let p3 = {x: s2.x, y: s2.y};
+            let p1, p2;
+
+            if(type === 'line') {
+                p1 = {x: p0.x + (p3.x-p0.x)*0.33, y: p0.y + (p3.y-p0.y)*0.33};
+                p2 = {x: p0.x + (p3.x-p0.x)*0.66, y: p0.y + (p3.y-p0.y)*0.66};
+            } else if (type === 'curve') {
+                let mx = (p0.x+p3.x)/2, my = (p0.y+p3.y)/2;
+                let dx = p3.x-p0.x, dy = p3.y-p0.y;
+                let len = Math.sqrt(dx*dx+dy*dy);
+                let nx = -dy/len, ny = dx/len;
+                let off = 50 * dir;
+                p1 = {x: mx + nx*off, y: my + ny*off};
+                p2 = p1;
+            } else { // self-loop
+                let off = 70 * (dir || 1);
+                p1 = {x: p0.x - 30, y: p0.y + off};
+                p2 = {x: p0.x + 30, y: p0.y + off};
+            }
+            return {p0, p1, p2, p3};
+        }
+
+        function initParticles() {
+            particles = [];
+            if(!DFA_DATA) return;
+
+            DFA_DATA.states.forEach(s => {
+                let color = s.isAccept ? '#a855f7' : '#0ea5e9';
+                // Outer ring
+                for(let i=0; i<15; i++) {
+                    particles.push(new OrbitParticle(s.x, s.y, 30, color));
+                }
+                // Inner ring (dense)
+                for(let i=0; i<8; i++) {
+                    particles.push(new OrbitParticle(s.x, s.y, 20, color)); // Reduced visual noise
+                }
+                if(s.isAccept) {
+                    // Double ring effect
+                     for(let i=0; i<15; i++) {
+                        particles.push(new OrbitParticle(s.x, s.y, 36, color));
+                    }
+                }
+            });
+
+            DFA_DATA.transitions.forEach(t => {
+                let s1 = DFA_DATA.states.find(s=>s.id === t.from);
+                let s2 = DFA_DATA.states.find(s=>s.id === t.to);
+                let pts = getControlPoints(s1, s2, t.type, t.curveDir);
+                
+                // Add flowing particles
+                for(let i=0; i<5; i++) {
+                    particles.push(new FlowParticle(pts.p0, pts.p1, pts.p2, pts.p3, 0.005 + Math.random()*0.005));
+                }
+            });
+        }
+
+        // --- 6. RUNNER LOGIC ---
+
+        class Runner {
+            constructor() {
+                this.active = false;
+                this.queue = [];
+                this.trail = [];
+                this.x = 0; this.y = 0;
+            }
+            
+            run(str, onFinish) {
+                if(!DFA_DATA) return;
+                this.queue = [];
+                let curr = 0;
+                let s = DFA_DATA.states.find(st => st.id === 0);
+                this.x = s.x; this.y = s.y;
+                this.active = true;
+                this.onFinish = onFinish;
+
+                for(let char of str) {
+                    if(char !== 'a' && char !== 'b') continue;
+                    let trans = DFA_DATA.transitions.find(t => t.from === curr && t.char === char);
+                    if(trans) {
+                        let s1 = DFA_DATA.states.find(st => st.id === trans.from);
+                        let s2 = DFA_DATA.states.find(st => st.id === trans.to);
+                        this.queue.push({
+                            pts: getControlPoints(s1, s2, trans.type, trans.curveDir)
+                        });
+                        curr = trans.to;
+                    } else {
+                        // Dead end (Implicit Trap)
+                        this.active = false;
+                        if(onFinish) onFinish(false);
+                        return;
+                    }
+                }
+                this.finalState = curr;
+                this.moveIdx = 0;
+                this.progress = 0;
+                
+                if(this.queue.length === 0) this.complete();
+            }
+
+            update() {
+                if(!this.active || this.queue.length === 0) return;
+                
+                let move = this.queue[this.moveIdx];
+                this.progress += 0.04;
+                
+                let pos = getBezierPoint(this.progress, move.pts.p0, move.pts.p1, move.pts.p2, move.pts.p3);
+                this.x = pos.x; this.y = pos.y;
+                
+                this.trail.push({x:this.x, y:this.y, age:1});
+
+                if(this.progress >= 1) {
+                    this.progress = 0;
+                    this.moveIdx++;
+                    if(this.moveIdx >= this.queue.length) {
+                        this.complete();
+                    }
+                }
+            }
+
+            complete() {
+                this.active = false;
+                let isAcc = DFA_DATA.states.find(s=>s.id === this.finalState).isAccept;
+                if(this.onFinish) this.onFinish(isAcc);
+            }
+
+            draw(ctx) {
+                if(!this.active) return;
+                // Trail
+                for(let i=this.trail.length-1; i>=0; i--) {
+                    let t = this.trail[i];
+                    t.age -= 0.08;
+                    if(t.age<=0) this.trail.splice(i,1);
+                    else {
+                        ctx.fillStyle = `rgba(251, 191, 36, ${t.age})`;
+                        ctx.beginPath(); ctx.arc(t.x, t.y, 4, 0, Math.PI*2); ctx.fill();
+                    }
+                }
+                // Head
+                ctx.fillStyle = '#fff';
+                ctx.shadowBlur = 20; ctx.shadowColor = '#facc15';
+                ctx.beginPath(); ctx.arc(this.x, this.y, 8, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        // --- 7. UI HANDLERS ---
+
+        let testQueue = [];
+        let accCount = 0;
+        let rejCount = 0;
+
+        function runBatch() {
+            if(!DFA_DATA) { alert("Generate automata first."); return; }
+            let raw = document.getElementById('testStrings').value;
+            let parts = raw.split(',').map(s=>s.trim()).filter(s=>s.length);
+            
+            let list = document.getElementById('queue-list');
+            list.innerHTML = '';
+            testQueue = parts.map((s,i) => ({id:i, str:s}));
+            accCount = 0; rejCount = 0;
+            updateStats();
+            document.getElementById('stats').classList.remove('hidden');
+
+            testQueue.forEach(item => {
+                let div = document.createElement('div');
+                div.id = `q-${item.id}`;
+                div.className = 'queue-item';
+                div.innerHTML = `<span>${item.str}</span><span>WAIT</span>`;
+                list.appendChild(div);
+            });
+
+            processNext();
+        }
+
+        function processNext() {
+            let item = testQueue.find(q => !q.processed);
+            if(!item) return;
+
+            let el = document.getElementById(`q-${item.id}`);
+            el.className = 'queue-item processing';
+            el.scrollIntoView({behavior:'smooth'});
+
+            runner.run(item.str, (result) => {
+                item.processed = true;
+                el.className = result ? 'queue-item accepted' : 'queue-item rejected';
+                el.innerHTML = `<span>${item.str}</span><span>${result ? 'ACC' : 'REJ'}</span>`;
+                if(result) accCount++; else rejCount++;
+                updateStats();
+                setTimeout(processNext, 200);
+            });
+        }
+
+        function updateStats() {
+            document.getElementById('acc-count').innerText = accCount;
+            document.getElementById('rej-count').innerText = rejCount;
+        }
+
+        function generateRandomTests() {
+            let arr = [];
+            for(let i=0; i<5; i++) {
+                let len = 3 + Math.floor(Math.random()*5);
+                let s = "";
+                for(let j=0; j<len; j++) s += Math.random()>0.5 ? 'a' : 'b';
+                arr.push(s);
+            }
+            document.getElementById('testStrings').value = arr.join(', ');
+        }
+
+        function toggleSidebar() {
+            let sb = document.getElementById('sidebar');
+            let btn = document.getElementById('toggle-btn');
+            sb.classList.toggle('collapsed');
+            btn.innerHTML = sb.classList.contains('collapsed') ? '▶' : '◀';
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw particles
+            particles.forEach(p => { p.update(); p.draw(ctx); });
+            
+            if(DFA_DATA) {
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // Draw State Labels
+                DFA_DATA.states.forEach(s => {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 16px monospace';
+                    ctx.shadowColor = 'black';
+                    ctx.shadowBlur = 4;
+                    ctx.fillText(s.label, s.x, s.y);
+                    ctx.shadowBlur = 0;
+                });
+                
+                // Draw Transition Labels
+                DFA_DATA.transitions.forEach(t => {
+                    let s1 = DFA_DATA.states.find(s=>s.id === t.from);
+                    let s2 = DFA_DATA.states.find(s=>s.id === t.to);
+                    let pts = getControlPoints(s1, s2, t.type, t.curveDir);
+                    let mid = getBezierPoint(0.5, pts.p0, pts.p1, pts.p2, pts.p3);
+                    
+                    ctx.fillStyle = '#1e293b';
+                    ctx.beginPath(); ctx.arc(mid.x, mid.y, 10, 0, Math.PI*2); ctx.fill();
+                    
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.font = '12px monospace';
+                    ctx.fillText(t.char, mid.x, mid.y);
+                });
+            }
+
+            if(runner) { runner.update(); runner.draw(ctx); }
+            requestAnimationFrame(animate);
+        }
+
+        resize();
+        generateMachine(); 
+        runner = new Runner();
+        animate();
+
+    </script>
+</body>
+</html>
