@@ -1,0 +1,1747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neural Pixel Space</title>
+    
+    <!-- MediaPipe Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* Prevent default touch actions */
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .input_video {
+            display: none;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.85);
+            transition: opacity 1s ease-out;
+            opacity: 0;
+        }
+
+        .hud-text {
+            color: #00ffea;
+            text-shadow: 0 0 10px #00ffea;
+            font-size: clamp(1rem, 4vw, 1.5rem); /* Responsive font size */
+            text-align: center;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+            opacity: 1;
+            transition: opacity 0.5s;
+            padding: 0 20px;
+        }
+
+        .status-indicator {
+            width: min(80%, 300px);
+            height: 4px;
+            background: #333;
+            margin-top: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-bar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 0%;
+            background: #ff0055;
+            box-shadow: 0 0 10px #ff0055;
+            transition: width 0.3s;
+        }
+
+        #achievement-popup {
+            position: absolute;
+            top: 15%;
+            left: 50%;
+            transform: translate(-50%, -50px);
+            background: rgba(0, 255, 234, 0.1);
+            border: 1px solid #00ffea;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: clamp(0.9rem, 3vw, 1.2rem);
+            text-shadow: 0 0 5px #00ffea;
+            box-shadow: 0 0 20px rgba(0, 255, 234, 0.3);
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 20;
+            pointer-events: none;
+            text-align: center;
+            backdrop-filter: blur(5px);
+            width: max-content;
+            max-width: 90vw;
+        }
+
+        #achievement-popup.visible {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+
+        #controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: min(200px, 40vw); /* Prevent overlap on small screens */
+            padding: 15px;
+            background: rgba(0, 20, 40, 0.8);
+            border: 1px solid #00ffea;
+            border-radius: 8px;
+            z-index: 5;
+            color: #00ffea;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            backdrop-filter: blur(4px);
+            pointer-events: auto; /* Ensure clickable */
+        }
+
+        /* Landscape adjustment for controls */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #controls {
+                top: 10px;
+                right: 10px;
+                padding: 10px;
+                transform: scale(0.8);
+                transform-origin: top right;
+            }
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #00ffea;
+            height: 20px; /* Taller touch target */
+        }
+
+        button#rgb-btn {
+            background: transparent;
+            border: 1px solid #ff0055;
+            color: #ff0055;
+            padding: 12px 8px; /* Larger touch target */
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-shadow: 0 0 5px #ff0055;
+            box-shadow: 0 0 5px #ff0055 inset;
+        }
+
+        button#rgb-btn:hover, button#rgb-btn:active {
+            background: #ff0055;
+            color: white;
+            box-shadow: 0 0 15px #ff0055;
+        }
+
+        button#rgb-btn.active {
+            animation: rainbow-bg 0.5s infinite;
+            border-color: white;
+            color: white;
+            text-shadow: 0 0 5px black;
+        }
+
+        @keyframes rainbow-bg {
+            0% { background-color: #ff0000; }
+            20% { background-color: #ffff00; }
+            40% { background-color: #00ff00; }
+            60% { background-color: #00ffff; }
+            80% { background-color: #0000ff; }
+            100% { background-color: #ff00ff; }
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0) }
+            20% { transform: translate(-2px, 2px) }
+            40% { transform: translate(-2px, -2px) }
+            60% { transform: translate(2px, 2px) }
+            80% { transform: translate(2px, -2px) }
+            100% { transform: translate(0) }
+        }
+
+        .glitch {
+            animation: glitch 0.5s infinite;
+            display: inline-block;
+        }
+
+        #debug-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #555;
+            font-size: 0.7rem;
+            pointer-events: none;
+            max-width: 60%;
+            line-height: 1.4;
+        }
+
+        /* Splash Screen Animation */
+        @keyframes textGlow {
+            0% { text-shadow: 0 0 10px #00ffea; opacity: 0; transform: scale(0.9); }
+            20% { text-shadow: 0 0 25px #00ffea; opacity: 1; transform: scale(1); }
+            80% { text-shadow: 0 0 25px #00ffea; opacity: 1; transform: scale(1); }
+            100% { text-shadow: 0 0 5px #00ffea; opacity: 0; transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        <canvas id="output_canvas"></canvas>
+        <video class="input_video"></video>
+        
+        <!-- SPLASH SCREEN -->
+        <div id="splash-screen" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none;">
+            <div style="animation: textGlow 2.5s ease-in-out forwards; text-align: center; padding: 0 20px;">
+                <div style="color: #00ffea; font-size: clamp(1.5rem, 5vw, 2.5rem); letter-spacing: 5px; font-weight: bold; margin-bottom: 15px;">
+                    NEURAL PIXEL SPACE
+                </div>
+                <div style="color: white; font-size: clamp(0.8rem, 3vw, 1.2rem); letter-spacing: 3px; font-family: 'Courier New', Courier, monospace;">
+                    MOBILE OPTIMIZED
+                </div>
+            </div>
+        </div>
+
+        <div id="achievement-popup">
+            🏆 ACHIEVEMENT UNLOCKED<br>
+            <span id="ach-text" style="font-size:0.9rem; color:#fff;">SYSTEM BALANCED</span>
+        </div>
+
+        <div id="controls">
+            <div class="control-group">
+                <label>DENSITY: <span id="density-val">800</span></label>
+                <input type="range" id="particle-slider" min="200" max="3000" step="100" value="800">
+            </div>
+            <button id="rgb-btn">RGB OVERDRIVE</button>
+        </div>
+
+        <div id="ui-layer">
+            <div id="intro-text" class="hud-text">INITIALIZING NEURAL LINK...</div>
+            <div class="status-indicator">
+                <div id="loading-bar" class="status-bar"></div>
+            </div>
+            <div id="instruction-text" class="hud-text" style="font-size: 1rem; color: #fff; margin-top: 20px; display:none;">
+                ALLOW CAMERA OR TOUCH TO BEGIN
+            </div>
+        </div>
+
+        <div id="debug-info">Stats: Particles: <span id="p-count">0</span> | Mode: <span id="h-status">Searching...</span></div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        // Optimize defaults for mobile
+        let PARTICLE_COUNT = isMobile ? 800 : 1200; 
+        
+        const COLOR_A = {r: 0, g: 255, b: 234}; // Cyan #00ffea
+        const COLOR_B = {r: 255, g: 0, b: 85};  // Magenta #ff0055
+        const SPACE_DRAG = 0.94;
+        const BASE_SPEED = 0.5;
+        const PI2 = Math.PI * 2;
+        
+        // --- Globals ---
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d', { alpha: false }); 
+        const uiLayer = document.getElementById('ui-layer');
+        const introText = document.getElementById('intro-text');
+        const loadingBar = document.getElementById('loading-bar');
+        const instructionText = document.getElementById('instruction-text');
+        const handStatus = document.getElementById('h-status');
+        const pCount = document.getElementById('p-count');
+        const densityVal = document.getElementById('density-val');
+        const particleSlider = document.getElementById('particle-slider');
+        const rgbBtn = document.getElementById('rgb-btn');
+        const achievementPopup = document.getElementById('achievement-popup');
+        const achText = document.getElementById('ach-text');
+        const splashScreen = document.getElementById('splash-screen');
+
+        let particles = [];
+        let width, height;
+        let globalHue = 0;
+        let isRGBMode = false;
+        let globalScale = 1.0; // Dynamic scale factor for responsive shapes
+        
+        // Interaction State
+        let targetPosition = { x: -1000, y: -1000 };
+        let targetPosition2 = { x: -1000, y: -1000 }; 
+        let isTouchActive = false;
+        let lastTouchTime = 0;
+        let touchStartTimestamp = 0;
+        
+        // Global Modes
+        let interactionMode = 'IDLE'; 
+        
+        // Independent Hand States 
+        let hand1State = 'GRAVITY'; 
+        let hand2State = 'GRAVITY'; 
+
+        let simulationStarted = false;
+
+        // Update Slider UI
+        particleSlider.value = PARTICLE_COUNT;
+        densityVal.innerText = PARTICLE_COUNT;
+
+        // --- IDLE ANIMATION CONTROLLER ---
+        const idleController = {
+            state: 'WAITING', // WAITING, PLAYING
+            lastActionTime: Date.now(),
+            waitDuration: 10000,
+            currentAnim: null,
+            animStartTime: 0,
+            animIndex: 0, 
+            
+            // Animation Objects
+            blackHole: { x: 0, y: 0, vx: 0, vy: 0, active: false },
+            solarFlyby: { x: 0, y: 0, vx: 0, vy: 0, active: false },
+            cometDirection: { x: 1, y: 1 },
+            
+            animations: ['BLACK_HOLE', 'COMET_SHOWER', 'QUESTION_MARK', 'SOLAR_FLYBY']
+        };
+        
+        // Achievements
+        let unlockedAchievements = {
+            balance: false,
+            galaxy: false,
+            solar: false,
+            starwars: false,
+            blackhole: false,
+            birth: false
+        };
+
+        // Gestures Timers
+        let okTimer1 = 0;
+        let okTimer2 = 0;
+        let swConfirmTimer = 0;
+        let dualGalaxyTimer = 0;
+
+        // Sequence State
+        let sequenceActive = false;
+        let sequenceStartTime = 0;
+
+        // --- Controls & UI ---
+        particleSlider.addEventListener('input', (e) => {
+            PARTICLE_COUNT = parseInt(e.target.value);
+            densityVal.innerText = PARTICLE_COUNT;
+            initParticles(); 
+        });
+
+        rgbBtn.addEventListener('click', () => {
+            isRGBMode = !isRGBMode;
+            rgbBtn.classList.toggle('active');
+        });
+
+        function triggerAchievement(type) {
+            if (unlockedAchievements[type]) return;
+            unlockedAchievements[type] = true;
+            
+            let text = "";
+            if (type === 'balance') text = "PERFECT BALANCE";
+            if (type === 'galaxy') text = "GALACTIC WORMHOLE STABILIZED";
+            if (type === 'solar') text = "GALAXY IN PALM";
+            if (type === 'starwars') text = "FORCE IS STRONG";
+            if (type === 'blackhole') text = "EVENT HORIZON";
+            
+            achText.innerText = text;
+            achievementPopup.classList.add('visible');
+            
+            setTimeout(() => {
+                achievementPopup.classList.remove('visible');
+            }, 4000);
+        }
+
+        // --- Solar System Configuration ---
+        const SOLAR_SYSTEM = [
+            { name: 'Sun', r: 0, s: 0, size: 25, color: '#FDB813' }, 
+            { name: 'Mercury', r: 55, s: 4.0, size: 4, color: '#A5A5A5' },
+            { name: 'Venus', r: 85, s: 2.5, size: 7, color: '#E3BB76' },
+            { name: 'Earth', r: 125, s: 1.5, size: 7, color: '#22A6B3', moons: [{r: 15, s: 5, c: '#DDD', size: 2}] },
+            { name: 'Mars', r: 165, s: 1.0, size: 5, color: '#FF4500', moons: [{r: 10, s: 6, c: '#AAA', size: 1.5}, {r: 14, s: 4, c: '#999', size: 1.5}] },
+            { name: 'Jupiter', r: 240, s: 0.5, size: 18, color: '#D9A066', moons: [{r: 28, s: 3, c: '#CCC', size: 2}, {r: 35, s: 2, c: '#FFF', size: 2}, {r: 42, s: 1.5, c: '#EEE', size: 1.5}] },
+            { name: 'Saturn', r: 330, s: 0.3, size: 15, color: '#F4D03F', ring: {min: 22, max: 40, c: '#C0A060'} },
+            { name: 'Uranus', r: 410, s: 0.2, size: 10, color: '#40E0D0' },
+            { name: 'Neptune', r: 470, s: 0.15, size: 10, color: '#4169E1' }
+        ];
+
+        // --- Geometric Functions ---
+        function getHeartPoint(t, scale) {
+            const adjustedScale = scale * globalScale;
+            const x = 16 * Math.pow(Math.sin(t), 3);
+            const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+            return { x: x * adjustedScale, y: y * adjustedScale };
+        }
+
+        function getQuestionMarkPoint(t, scale, cx, cy) {
+            const s = scale * globalScale;
+            let x = 0, y = 0;
+            
+            if (t < 0.5) {
+                const nt = t / 0.5;
+                const angle = -Math.PI + (nt * 1.5 * Math.PI); 
+                const radius = s * 10;
+                x = cx + Math.cos(angle) * radius;
+                y = (cy - s * 10) + Math.sin(angle) * radius;
+                if(nt > 0.8) x -= (nt-0.8)*20*globalScale;
+            } else if (t < 0.7) {
+                const nt = (t - 0.5) / 0.2;
+                x = cx;
+                y = cy + (nt * s * 10);
+            } else if (t < 0.8) {
+                const nt = (t - 0.7) / 0.1;
+                const angle = nt * Math.PI * 4;
+                x = cx + Math.cos(angle) * 5 * globalScale;
+                y = cy + s * 15 + Math.sin(angle) * 5 * globalScale;
+            } else {
+                const nt = (t - 0.8) / 0.2;
+                x = (cx - s * 8) + (nt * s * 16);
+                y = cy + s * 25;
+            }
+            return {x, y};
+        }
+
+        function getPeaceHandPoint(t, scale) {
+            const s = scale * globalScale;
+            let x, y;
+            if (t < 0.5) { 
+                const angle = (t / 0.5) * PI2;
+                x = Math.cos(angle) * 7;
+                y = Math.sin(angle) * 7 + 6; 
+            } else if (t < 0.75) { 
+                const lt = (t - 0.5) / 0.25;
+                x = -2.5 + (-2 * lt); 
+                y = 0 - (15 * lt);    
+            } else { 
+                const lt = (t - 0.75) / 0.25;
+                x = 2.5 + (2 * lt);    
+                y = 0 - (15 * lt);    
+            }
+            return {x: x * s, y: y * s};
+        }
+
+        function getHandShapePoint(t, scale) {
+            const s = scale * globalScale;
+            const angle = t * PI2;
+            let x, y;
+            const r = 8 + 6 * Math.cos(5 * angle - Math.PI/2);
+            x = r * Math.cos(angle - Math.PI/2);
+            y = r * Math.sin(angle - Math.PI/2) + 5;
+            return {x: x * s * 0.8, y: y * s * 0.8};
+        }
+
+        function getSpiderPoint(t, scale) {
+            const s = scale * globalScale;
+            let x, y;
+            if (t < 0.2) { 
+                const angle = (t / 0.2) * PI2;
+                x = Math.cos(angle) * 3;
+                y = Math.sin(angle) * 3 - 6;
+            } else if (t < 0.4) {
+                const angle = ((t - 0.2) / 0.2) * PI2;
+                x = Math.cos(angle) * 5;
+                y = Math.sin(angle) * 6 + 4;
+            } else {
+                const legT = (t - 0.4) / 0.6; 
+                const legNum = Math.floor(legT * 8); 
+                const legProgress = (legT * 8) % 1; 
+                const side = legNum < 4 ? -1 : 1;
+                const vert = (legNum % 4) - 1.5; 
+                const startX = side * 4;
+                const startY = vert * 2 + 3;
+                const extX = side * 16;
+                const extY = vert * 8 - (Math.abs(side) * 8); 
+                x = startX + (extX - startX) * legProgress;
+                y = startY + (extY - startY) * legProgress;
+                if(legProgress > 0.5) y += (legNum % 4 < 2) ? -2 : 2; 
+            }
+            return {x: x * s, y: y * s};
+        }
+
+        function getStarWarsTextPoint(t, width, height) {
+            const letter = Math.floor(t * 8);
+            const lt = (t * 8) % 1;
+            const cx = width / 2;
+            const cy = height / 2;
+            const s = width * 0.05 * (isMobile ? 1.5 : 1.0); // Larger text on mobile
+            const rowY = (letter < 4) ? cy - s * 1.5 : cy + s * 1.5;
+            const colX = cx + ((letter % 4) - 1.5) * (s * 2.5);
+            let dx = 0, dy = 0;
+            // Simplified vector logic for letter forms
+            if (letter === 0 || letter === 7) { 
+                const angle = lt * Math.PI * 2.5; 
+                dx = Math.cos(angle) * s * 0.5; dy = Math.sin(angle) * s * 0.8;
+                if(lt < 0.5) { dx += s*0.2; dy -= s*0.5; } else { dx -= s*0.2; dy += s*0.5; }
+            } else if (letter === 1) { 
+                if (lt < 0.3) { dx = (lt/0.3 - 0.5)*2*s; dy = -s; } else { dx = 0; dy = -s + ((lt-0.3)/0.7)*2*s; } 
+            } else if (letter === 2 || letter === 5) { 
+                if (lt < 0.4) { dx = -s*0.5 + (lt/0.4)*s*0.5; dy = s - (lt/0.4)*2*s; } 
+                else if (lt < 0.8) { dx = (lt-0.4)/0.4*s*0.5; dy = -s + ((lt-0.4)/0.4)*2*s; } 
+                else { dx = -s*0.3 + ((lt-0.8)/0.2)*s*0.6; dy = 0; } 
+            } else if (letter === 3 || letter === 6) { 
+                if(lt < 0.25) { dx = -s*0.5; dy = -s + (lt/0.25)*2*s; } 
+                else if(lt < 0.75) { const a = -Math.PI/2 + ((lt-0.25)/0.5)*Math.PI; dx = -s*0.5 + Math.cos(a)*s*0.8; dy = -s*0.5 + Math.sin(a)*s*0.5; } 
+                else { dx = -s*0.2 + ((lt-0.75)/0.25)*s*0.7; dy = ((lt-0.75)/0.25)*s; }
+            } else if (letter === 4) { 
+               if(lt<0.25) { dx = -s*0.8 + lt/0.25*s*0.4; dy = -s + lt/0.25*2*s; }
+               else if(lt<0.5) { dx = -s*0.4 + (lt-0.25)/0.25*s*0.4; dy = s - (lt-0.25)/0.25*s; }
+               else if(lt<0.75) { dx = (lt-0.5)/0.25*s*0.4; dy = (lt-0.5)/0.25*s; }
+               else { dx = s*0.4 + (lt-0.75)/0.25*s*0.4; dy = s - (lt-0.75)/0.25*2*s; }
+            }
+            return {x: colX + dx, y: rowY + dy};
+        }
+
+        function getCockpitPoint(t, width, height) {
+            let x, y, color = '#00FF00';
+            // Scale points based on screen size
+            const w = width;
+            const h = height;
+            
+            if (t < 0.2) {
+                const angle = Math.PI + (t/0.2) * Math.PI;
+                x = Math.cos(angle) * w * 0.5; y = h * 0.3 + Math.sin(angle) * h * 0.2;
+            } else if (t < 0.4) {
+                const lt = (t - 0.2) / 0.2; const angle = Math.PI + (lt * Math.PI);
+                x = Math.cos(angle) * w * 0.6; y = -h * 0.2 + Math.sin(angle) * h * 0.4;
+            } else if (t < 0.5) {
+                const lt = (t - 0.4) / 0.1; x = 0; y = -h * 0.6 + lt * h * 0.8; 
+            } else if (t < 0.7) {
+                const lt = (t - 0.5) / 0.2;
+                const size = 200 * globalScale;
+                if(lt < 0.5) { const angle = lt * 2 * PI2; x = Math.cos(angle) * (60*globalScale); y = Math.sin(angle) * (60*globalScale); } 
+                else { const ltt = (lt - 0.5) * 2; if(ltt < 0.5) { x = (ltt - 0.25)*size; y = 0; } else { x = 0; y = (ltt - 0.75)*size; } }
+                color = '#FF5500'; 
+            } else if (t < 0.9) {
+                const lt = (t - 0.7) / 0.2;
+                const span = 100 * globalScale;
+                const depth = 200 * globalScale;
+                if (lt < 0.5) { x = -w * 0.3 - lt * span; y = -h * 0.3 + lt * depth; } 
+                else { x = w * 0.3 + (lt-0.5) * span; y = -h * 0.3 + (lt-0.5) * depth; }
+            } else {
+                const lt = (t - 0.9) / 0.1; x = (lt - 0.5) * w * 0.4; y = h * 0.4 + Math.sin(lt * 20) * 20;
+                color = (Math.random() > 0.5) ? '#FF0000' : '#0000FF';
+            }
+            return {x, y, color};
+        }
+
+        function getSolarSystemPoint(particle, centerTime, scale, cx=0, cy=0) {
+            const totalPlanets = SOLAR_SYSTEM.length;
+            const planetIdx = Math.floor(particle.tParamLinear * totalPlanets);
+            const p = SOLAR_SYSTEM[planetIdx] || SOLAR_SYSTEM[0];
+            
+            let x, y, color;
+            const T = centerTime;
+
+            const angle = T * p.s + particle.tParam * 5; 
+            
+            // Adjust radius and sizes by globalScale
+            const rAdj = p.r * globalScale;
+            const sizeAdj = p.size * globalScale;
+            
+            const px = rAdj * Math.cos(angle);
+            const py = rAdj * Math.sin(angle);
+
+            if (planetIdx === 0) {
+                const r = Math.random() * sizeAdj;
+                const theta = Math.random() * PI2;
+                x = px + r * Math.cos(theta);
+                y = py + r * Math.sin(theta);
+                color = p.color;
+            } else {
+                const featureSeed = (particle.tParamLinear * totalPlanets) % 1; 
+
+                if (p.ring && featureSeed > 0.7) {
+                    const rMin = p.ring.min * globalScale;
+                    const rMax = p.ring.max * globalScale;
+                    const ringR = rMin + Math.random() * (rMax - rMin);
+                    const ringAngle = particle.tParam * 20; 
+                    x = px + ringR * Math.cos(ringAngle);
+                    y = py + (ringR * 0.4) * Math.sin(ringAngle); 
+                    color = p.ring.c;
+                } else if (p.moons && p.moons.length > 0 && featureSeed > 0.8) {
+                    const mIdx = Math.floor(featureSeed * 10) % p.moons.length;
+                    const m = p.moons[mIdx];
+                    const mAngle = T * m.s + particle.tParam * 10;
+                    const mR = m.r * globalScale;
+                    x = px + mR * Math.cos(mAngle);
+                    y = py + mR * Math.sin(mAngle);
+                    color = m.c;
+                } else {
+                    const r = Math.random() * (sizeAdj * 0.8);
+                    const theta = Math.random() * PI2;
+                    x = px + r * Math.cos(theta);
+                    y = py + r * Math.sin(theta);
+                    color = p.color;
+                }
+            }
+
+            return { x: cx + x * scale, y: cy + y * scale, color: color };
+        }
+
+        // --- Particle Class ---
+        class Particle {
+            constructor() {
+                this.init();
+                this.tParam = Math.random() * PI2; 
+                this.tParamLinear = Math.random(); 
+                this.z = 0; 
+                this.customColor = null; 
+            }
+
+            init(x, y) {
+                this.x = x || Math.random() * width;
+                this.y = y || Math.random() * height;
+                this.vx = (Math.random() - 0.5) * BASE_SPEED;
+                this.vy = (Math.random() - 0.5) * BASE_SPEED;
+                this.isColorA = Math.random() > 0.5;
+                this.baseSize = (Math.random() * 2 + 1) * (isMobile ? 1.5 : 1.0); // Bigger on mobile
+                this.size = this.baseSize;
+                this.z = 0;
+                this.customColor = null;
+            }
+
+            // STAR WARS SEQUENCE
+            applySequence(timeElapsed) {
+                const cx = width / 2;
+                const cy = height / 2;
+                this.customColor = null; 
+
+                // 0. STATIC TITLE (0s - 5s)
+                if (timeElapsed < 5.0) {
+                    this.customColor = '#FFE81F'; 
+                    const pt = getStarWarsTextPoint(this.tParamLinear, width, height);
+                    const dx = pt.x - this.x;
+                    const dy = pt.y - this.y;
+                    this.vx += dx * 0.1;
+                    this.vy += dy * 0.1;
+                }
+                // 1. SABER DRAW (5.0s - 12.0s)
+                else if (timeElapsed < 12.0) {
+                    const progress = (timeElapsed - 5.0) / 7.0; 
+                    const saberHeight = height * 0.6 * progress;
+                    const startY = height * 0.9;
+                    if (this.isColorA) {
+                        this.customColor = '#0088FF';
+                        const startX = width * 0.35; 
+                        const targetX = startX + (Math.random()-0.5)*10;
+                        const targetY = startY - (this.tParamLinear * saberHeight);
+                        const dx = targetX - this.x; const dy = targetY - this.y;
+                        this.vx += dx * 0.05; this.vy += dy * 0.05;
+                    } else {
+                        this.customColor = '#FF0000';
+                        const startX = width * 0.65;
+                        const targetX = startX + (Math.random()-0.5)*10;
+                        const targetY = startY - (this.tParamLinear * saberHeight);
+                        const dx = targetX - this.x; const dy = targetY - this.y;
+                        this.vx += dx * 0.05; this.vy += dy * 0.05;
+                    }
+                }
+                // 2. CROSS (12.0s - 16.0s)
+                else if (timeElapsed < 16.0) {
+                    const progress = (timeElapsed - 12.0) / 4.0;
+                    this.customColor = (this.isColorA ? '#0088FF' : '#FF0000');
+                    const startY = height * 0.8; const saberLen = height * 0.6;
+                    let tx, ty;
+                    if (this.isColorA) {
+                        const angle = -Math.PI/2 + (Math.PI/4 * progress); 
+                        const len = this.tParamLinear * saberLen;
+                        const baseX = width * 0.35 + (width*0.15 * progress); 
+                        tx = baseX + Math.cos(angle) * len; ty = startY + Math.sin(angle) * len;
+                    } else {
+                        const angle = -Math.PI/2 - (Math.PI/4 * progress); 
+                        const len = this.tParamLinear * saberLen;
+                        const baseX = width * 0.65 - (width*0.15 * progress);
+                        tx = baseX + Math.cos(angle) * len; ty = startY + Math.sin(angle) * len;
+                    }
+                    const dx = tx - this.x; const dy = ty - this.y;
+                    this.vx += dx * 0.1; this.vy += dy * 0.1;
+                }
+                // 3. CLASH (16.0s - 20.0s)
+                else if (timeElapsed < 20.0) {
+                    this.customColor = (Math.random() > 0.7) ? '#FFFFFF' : (this.isColorA ? '#0088FF' : '#FF0000');
+                    const dx = cx - this.x; const dy = cy - this.y;
+                    this.vx += dx * 0.5; this.vy += dy * 0.5;
+                    this.vx += (Math.random() - 0.5) * 50; this.vy += (Math.random() - 0.5) * 50;
+                }
+                // 4. BURST (20.0s - 22.0s)
+                else if (timeElapsed < 22.0) {
+                    const progress = (timeElapsed - 20.0) / 2.0;
+                    if (progress < 0.1) {
+                        const angle = Math.atan2(this.y - cy, this.x - cx);
+                        const force = 60 + Math.random() * 60; 
+                        this.vx = Math.cos(angle) * force;
+                        this.vy = Math.sin(angle) * force;
+                    }
+                    this.customColor = (Math.random() > 0.5) ? '#FF4400' : '#FFFF00';
+                }
+                // 5. COCKPIT (22.0s - 30.0s)
+                else if (timeElapsed < 30.0) {
+                    const pt = getCockpitPoint(this.tParamLinear, width, height);
+                    this.customColor = pt.color || '#00FF00';
+                    const tx = cx + pt.x; const ty = cy + pt.y;
+                    const dx = tx - this.x; const dy = ty - this.y;
+                    this.vx += dx * 0.05; this.vy += dy * 0.05;
+                    this.x += (Math.random() - 0.5) * 2; this.y += (Math.random() - 0.5) * 2;
+                }
+            }
+
+            applyHandEffect(tx, ty, state) {
+                this.customColor = null; 
+                
+                // Scale forces for mobile
+                const forceMult = isMobile ? 1.5 : 1.0; 
+
+                if (state === 'GRAVITY') {
+                    const dx = this.x - tx;
+                    const dy = this.y - ty;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const angle = Math.atan2(dy, dx);
+                    const range = 400 * globalScale;
+                    if (dist < range && dist > 20) {
+                        const force = (range - dist) / (350 * globalScale);
+                        this.vx -= Math.cos(angle) * force * 2 * forceMult; 
+                        this.vy -= Math.sin(angle) * force * 2 * forceMult;
+                    }
+                    return false;
+
+                } else if (state === 'REPULSOR') {
+                    const dx = this.x - tx;
+                    const dy = this.y - ty;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const angle = Math.atan2(dy, dx);
+                    const range = 500 * globalScale;
+                    if (dist < range) {
+                        const force = ((range + 100) - dist) / 10;
+                        this.vx += Math.cos(angle) * force * 0.8 * forceMult;
+                        this.vy += Math.sin(angle) * force * 0.8 * forceMult;
+                    }
+                    return false;
+
+                } else if (state === 'SINGULARITY') {
+                    const dx = this.x - tx;
+                    const dy = this.y - ty;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const angle = Math.atan2(dy, dx);
+                    if (dist > 30) {
+                        const force = 1.8 * forceMult;
+                        this.vx -= Math.cos(angle) * force; 
+                        this.vy -= Math.sin(angle) * force;
+                        const rotForce = 0.9 * forceMult;
+                        this.vx += Math.cos(angle + Math.PI/2) * rotForce;
+                        this.vy += Math.sin(angle + Math.PI/2) * rotForce;
+                    }
+                    return false;
+
+                } else if (state === 'PEACE') {
+                    const scale = 12;
+                    const pt = getPeaceHandPoint(this.tParamLinear, scale);
+                    const destX = tx + pt.x;
+                    const destY = ty + pt.y;
+                    const dx = destX - this.x;
+                    const dy = destY - this.y;
+                    this.vx += dx * 0.04;
+                    this.vy += dy * 0.04;
+                    this.vx += (Math.random() - 0.5) * 0.5;
+                    this.vy += (Math.random() - 0.5) * 0.5;
+                    return true;
+
+                } else if (state === 'SPIDER') {
+                    const scale = 10;
+                    const pt = getSpiderPoint(this.tParamLinear, scale);
+                    const destX = tx + pt.x;
+                    const destY = ty + pt.y;
+                    const dx = destX - this.x;
+                    const dy = destY - this.y;
+                    this.vx += dx * 0.05;
+                    this.vy += dy * 0.05;
+                    return true;
+
+                } else if (state === 'THUMBS_UP') {
+                    const scale = 12;
+                    const pt = getHandShapePoint(this.tParamLinear, scale);
+                    const destX = tx + pt.x;
+                    const destY = ty + pt.y;
+                    const dx = destX - this.x;
+                    const dy = destY - this.y;
+                    this.vx += dx * 0.06;
+                    this.vy += dy * 0.06;
+                    return true;
+
+                } else if (state === 'OK_SIGN') {
+                    triggerAchievement('solar');
+                    const time = Date.now() / 1000;
+                    const pt = getSolarSystemPoint(this, time, 1);
+                    const destX = tx + pt.x;
+                    const destY = ty + pt.y;
+                    const dx = destX - this.x;
+                    const dy = destY - this.y;
+                    
+                    this.vx += dx * 0.05;
+                    this.vy += dy * 0.05;
+                    this.customColor = pt.color;
+                    return true;
+                }
+                return false;
+            }
+
+            update() {
+                this.customColor = null; 
+                this.vx *= SPACE_DRAG;
+                this.vy *= SPACE_DRAG;
+                
+                const maxSpeed = 30;
+                const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+                if (speed > maxSpeed) {
+                    this.vx = (this.vx / speed) * maxSpeed;
+                    this.vy = (this.vy / speed) * maxSpeed;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                let in3DMode = false;
+
+                if (sequenceActive) {
+                    const timeElapsed = (Date.now() - sequenceStartTime) / 1000;
+                    if (timeElapsed > 30.0) { 
+                        sequenceActive = false; 
+                    } else {
+                        this.applySequence(timeElapsed);
+                    }
+                    return; 
+                }
+
+                // --- IDLE ANIMATIONS LOGIC ---
+                if (interactionMode === 'PLAYING_ANIMATION') {
+                    const animTime = (Date.now() - idleController.animStartTime) / 1000;
+
+                    if (idleController.currentAnim === 'BLACK_HOLE') {
+                        // Physics: Gravity Well that moves
+                        const bh = idleController.blackHole;
+                        const dx = bh.x - this.x;
+                        const dy = bh.y - this.y;
+                        const distSq = dx*dx + dy*dy;
+                        const dist = Math.sqrt(distSq);
+                        const angle = Math.atan2(dy, dx);
+                        
+                        // Slightly weaker gravity than before, but wider reach
+                        const gForce = 1500 / (distSq + 2000); 
+                        this.vx += Math.cos(angle) * gForce;
+                        this.vy += Math.sin(angle) * gForce;
+                        
+                        if (dist < 40) {
+                            // Event Horizon Sucking Effect
+                            this.vx += (Math.random()-0.5) * 15;
+                            this.vy += (Math.random()-0.5) * 15;
+                            this.customColor = '#000000'; // Disappear into void
+                        }
+                    } 
+                    else if (idleController.currentAnim === 'COMET_SHOWER') {
+                        // High velocity diagonal movement
+                        const dir = idleController.cometDirection;
+                        const targetVx = dir.x * 20;
+                        const targetVy = dir.y * 20;
+                        // Particles accelerate towards this velocity
+                        this.vx += (targetVx - this.vx) * 0.1;
+                        this.vy += (targetVy - this.vy) * 0.1;
+                        
+                        // Add some sparkle
+                        if(Math.random() > 0.9) this.customColor = '#FFFFFF';
+                        
+                        // Wrap around logic specific to comets
+                        if(this.x > width + 50) this.x = -50;
+                        if(this.x < -50) this.x = width + 50;
+                        if(this.y > height + 50) this.y = -50;
+                        if(this.y < -50) this.y = height + 50;
+                    }
+                    else if (idleController.currentAnim === 'QUESTION_MARK') {
+                        const scale = 15;
+                        const cx = width / 2;
+                        const cy = height / 2 - 50;
+                        const pt = getQuestionMarkPoint(this.tParamLinear, scale, cx, cy);
+                        const dx = pt.x - this.x;
+                        const dy = pt.y - this.y;
+                        
+                        // Gentle lerp
+                        this.vx += dx * 0.05;
+                        this.vy += dy * 0.05;
+                        this.customColor = '#00FFEA';
+                    }
+                    else if (idleController.currentAnim === 'SOLAR_FLYBY') {
+                        const sf = idleController.solarFlyby;
+                        // Use existing solar system point generator, but offset by moving center
+                        const pt = getSolarSystemPoint(this, Date.now()/1000, 1, sf.x, sf.y);
+                        const dx = pt.x - this.x;
+                        const dy = pt.y - this.y;
+                        this.vx += dx * 0.08;
+                        this.vy += dy * 0.08;
+                        this.customColor = pt.color;
+                    }
+                    return;
+                }
+
+                if (interactionMode === 'TWO_BLACK_HOLE') {
+                    triggerAchievement('blackhole');
+                    const cx = (targetPosition.x + targetPosition2.x) / 2;
+                    const cy = (targetPosition.y + targetPosition2.y) / 2;
+                    
+                    const dx = cx - this.x;
+                    const dy = cy - this.y;
+                    const distSq = dx*dx + dy*dy;
+                    const dist = Math.sqrt(distSq);
+                    const angle = Math.atan2(dy, dx);
+
+                    // Strong Gravity
+                    const gForce = 1500 / (distSq + 100); 
+                    this.vx += Math.cos(angle) * gForce;
+                    this.vy += Math.sin(angle) * gForce;
+
+                    // Rotation (Swirl)
+                    const rotForce = 50 / (dist + 10);
+                    this.vx += Math.cos(angle + Math.PI/2) * rotForce;
+                    this.vy += Math.sin(angle + Math.PI/2) * rotForce;
+
+                    // Event Horizon / Jets
+                    if (dist < 20) {
+                        // Shoot out as Jet
+                        const jetAngle = (Math.random() < 0.5 ? -Math.PI/2 : Math.PI/2) + (Math.random()-0.5)*0.5;
+                        const jetSpeed = 20 + Math.random() * 20;
+                        this.vx = Math.cos(jetAngle) * jetSpeed;
+                        this.vy = Math.sin(jetAngle) * jetSpeed;
+                        this.x = cx + this.vx; 
+                        this.y = cy + this.vy;
+                    }
+
+                    // "Holy Black and White" Colors
+                    const brightness = Math.min(100, 255 - (dist / 3)); 
+                    this.customColor = `hsl(0, 0%, ${brightness}%)`;
+                    return;
+                }
+
+                if (interactionMode === 'TWO_WORMHOLE') {
+                    in3DMode = true;
+                    triggerAchievement('galaxy');
+
+                    const cx = (targetPosition.x + targetPosition2.x) / 2;
+                    const cy = (targetPosition.y + targetPosition2.y) / 2;
+                    
+                    const axisX = targetPosition2.x - targetPosition.x;
+                    const axisY = targetPosition2.y - targetPosition.y;
+                    const distHands = Math.sqrt(axisX*axisX + axisY*axisY) || 100;
+                    const angleHands = Math.atan2(axisY, axisX);
+
+                    this.tParam += 0.03;
+                    const a = distHands / 2; 
+                    const denom = 1 + Math.pow(Math.sin(this.tParam), 2);
+                    let lx = a * Math.cos(this.tParam) / denom;
+                    let ly = (a * 1.5) * Math.sin(this.tParam) * Math.cos(this.tParam) / denom; 
+
+                    const rx = lx * Math.cos(angleHands) - ly * Math.sin(angleHands);
+                    const ry = lx * Math.sin(angleHands) + ly * Math.cos(angleHands);
+
+                    const targetX = cx + rx;
+                    const targetY = cy + ry;
+
+                    const dx = targetX - this.x;
+                    const dy = targetY - this.y;
+                    
+                    this.vx += dx * 0.1;
+                    this.vy += dy * 0.1;
+                    
+                    this.z = Math.sin(this.tParam) * 30;
+
+                } else if (interactionMode === 'TWO_HEART') {
+                    const scale = 15;
+                    const pt = getHeartPoint(this.tParam, scale);
+                    const tx = targetPosition.x + pt.x;
+                    const ty = targetPosition.y + pt.y;
+                    const dist = Math.hypot(this.x - tx, this.y - ty);
+                    const angle = Math.atan2(ty - this.y, tx - this.x);
+                    const force = dist * 0.05;
+                    this.vx += Math.cos(angle) * force;
+                    this.vy += Math.sin(angle) * force;
+                    this.tParam += 0.01;
+
+                } else if (interactionMode === 'TWO_INDEPENDENT') {
+                    if ((hand1State === 'REPULSOR' && hand2State === 'GRAVITY') || 
+                        (hand1State === 'GRAVITY' && hand2State === 'REPULSOR')) {
+                        triggerAchievement('balance');
+                    }
+
+                    const isH1Shape = ['PEACE','SPIDER','THUMBS_UP','OK_SIGN'].includes(hand1State);
+                    const isH2Shape = ['PEACE','SPIDER','THUMBS_UP','OK_SIGN'].includes(hand2State);
+                    const isSplitMode = isH1Shape || isH2Shape;
+
+                    if (isSplitMode) {
+                        if (this.isColorA) {
+                            if(this.applyHandEffect(targetPosition.x, targetPosition.y, hand1State)) this.z=0;
+                        } else {
+                            if(this.applyHandEffect(targetPosition2.x, targetPosition2.y, hand2State)) this.z=0;
+                        }
+                    } else {
+                        this.applyHandEffect(targetPosition.x, targetPosition.y, hand1State);
+                        this.applyHandEffect(targetPosition2.x, targetPosition2.y, hand2State);
+                    }
+
+                } else if (interactionMode === 'ONE_SIMPLE') {
+                    if(this.applyHandEffect(targetPosition.x, targetPosition.y, hand1State)) this.z=0;
+                }
+
+                if (!in3DMode) this.z = 0;
+
+                // Adjust bounds for mobile to prevent premature reset
+                const bounds = 100 * globalScale;
+                if (this.x < -bounds || this.x > width + bounds || this.y < -bounds || this.y > height + bounds) {
+                    this.init(); 
+                }
+            }
+
+            draw() {
+                const scale = (this.z + 50) / 50; 
+                const drawSize = Math.max(0.5, this.size * scale);
+                
+                let alpha = this.alpha();
+                if (interactionMode === 'TWO_WORMHOLE') {
+                    if (this.z < -10) alpha *= 0.4; 
+                    else if (this.z > 10) alpha = Math.min(1, alpha * 1.3);
+                }
+
+                if (this.customColor) {
+                    canvasCtx.fillStyle = this.customColor;
+                } else if (isRGBMode) {
+                    const hue = (globalHue + (this.x / width) * 100) % 360;
+                    canvasCtx.fillStyle = `hsla(${hue}, 100%, 50%, ${alpha})`;
+                } else {
+                    const c = this.isColorA ? COLOR_A : COLOR_B;
+                    canvasCtx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha})`;
+                }
+                
+                canvasCtx.fillRect(this.x, this.y, drawSize, drawSize);
+            }
+
+            alpha() {
+                const speed = Math.abs(this.vx) + Math.abs(this.vy);
+                return Math.min(0.4 + speed * 0.1, 1);
+            }
+        }
+
+        const stars = [];
+        const STAR_COUNT = isMobile ? 50 : 100; // Fewer stars on mobile
+        
+        function initStars() {
+            stars.length = 0;
+            for(let i=0; i<STAR_COUNT; i++) {
+                stars.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    size: Math.random() * 1.5,
+                    alpha: Math.random(),
+                    speed: Math.random() * 2 + 0.5
+                });
+            }
+        }
+
+        function drawStars() {
+            const isHyper = interactionMode === 'TWO_WORMHOLE' || (sequenceActive && (Date.now()-sequenceStartTime) > 22000);
+            
+            canvasCtx.fillStyle = "white";
+            stars.forEach(star => {
+                if (isHyper) {
+                    star.x += star.speed * 20; 
+                    if(star.x > width) star.x = 0;
+                    canvasCtx.fillRect(star.x, star.y, star.size * 20, star.size); 
+                } else {
+                    // Slight parallax in normal modes
+                    star.x += star.speed * 0.1;
+                    if(star.x > width) star.x = 0;
+                    
+                    canvasCtx.globalAlpha = star.alpha * 0.5;
+                    canvasCtx.fillRect(star.x, star.y, star.size, star.size); 
+                    canvasCtx.globalAlpha = 1.0;
+                }
+            });
+        }
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvasElement.width = width;
+            canvasElement.height = height;
+            
+            // "Zoom out" effect on mobile: larger space relative to particle speed
+            // and scaling shapes down slightly so more fits.
+            // Using a base dimension of 1000px as reference.
+            globalScale = Math.min(width, height) / (isMobile ? 800 : 1000);
+        }
+
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push(new Particle());
+            }
+            pCount.innerText = PARTICLE_COUNT;
+        }
+
+        function updateIdleState() {
+            // If touching, don't run idle animations
+            if (isTouchActive) {
+                idleController.lastActionTime = Date.now();
+                return;
+            }
+
+            if (interactionMode !== 'IDLE' && interactionMode !== 'PLAYING_ANIMATION') {
+                idleController.state = 'WAITING';
+                idleController.lastActionTime = Date.now();
+                return;
+            }
+
+            // Logic to transition between WAITING and PLAYING
+            if (idleController.state === 'WAITING') {
+                interactionMode = 'IDLE';
+                handStatus.innerText = "IDLE: DRIFTING...";
+                
+                if (Date.now() - idleController.lastActionTime > idleController.waitDuration) {
+                    // Sequential selection
+                    idleController.currentAnim = idleController.animations[idleController.animIndex];
+                    idleController.animIndex = (idleController.animIndex + 1) % idleController.animations.length;
+                    
+                    idleController.state = 'PLAYING';
+                    idleController.animStartTime = Date.now();
+                    interactionMode = 'PLAYING_ANIMATION';
+                    
+                    // Init Animation Specifics
+                    if (idleController.currentAnim === 'BLACK_HOLE') {
+                        const bh = idleController.blackHole;
+                        bh.active = true;
+                        // Start from random edge
+                        const side = Math.floor(Math.random() * 4);
+                        if(side===0) { bh.x = -100; bh.y = Math.random()*height; } // Left
+                        if(side===1) { bh.x = width+100; bh.y = Math.random()*height; } // Right
+                        if(side===2) { bh.x = Math.random()*width; bh.y = -100; } // Top
+                        if(side===3) { bh.x = Math.random()*width; bh.y = height+100; } // Bottom
+                        
+                        // Target center-ish opposite side
+                        const tx = width - bh.x + (Math.random()-0.5)*200;
+                        const ty = height - bh.y + (Math.random()-0.5)*200;
+                        const angle = Math.atan2(ty - bh.y, tx - bh.x);
+                        const speed = 2 + Math.random(); // Slower speed
+                        bh.vx = Math.cos(angle) * speed;
+                        bh.vy = Math.sin(angle) * speed;
+                    } 
+                    else if (idleController.currentAnim === 'COMET_SHOWER') {
+                         // Random direction
+                         const angle = Math.random() * PI2;
+                         idleController.cometDirection.x = Math.cos(angle);
+                         idleController.cometDirection.y = Math.sin(angle);
+                    }
+                    else if (idleController.currentAnim === 'SOLAR_FLYBY') {
+                        const sf = idleController.solarFlyby;
+                        sf.active = true;
+                        sf.y = height * 0.3 + Math.random() * height * 0.4;
+                        sf.x = -200;
+                        sf.vx = 3; // Slow horizontal drift
+                        sf.vy = (Math.random()-0.5) * 0.5;
+                    }
+                }
+            } else if (idleController.state === 'PLAYING') {
+                const elapsed = Date.now() - idleController.animStartTime;
+                let finished = false;
+
+                if (idleController.currentAnim === 'BLACK_HOLE') {
+                    const bh = idleController.blackHole;
+                    bh.x += bh.vx;
+                    bh.y += bh.vy;
+                    // Check bounds (with padding to allow full exit)
+                    if ((bh.x < -200 && bh.vx < 0) || (bh.x > width+200 && bh.vx > 0) || 
+                        (bh.y < -200 && bh.vy < 0) || (bh.y > height+200 && bh.vy > 0)) {
+                        finished = true;
+                    }
+                    
+                    // Draw Enhanced Black Hole (Accretion Disk)
+                    const grad = canvasCtx.createRadialGradient(bh.x, bh.y, 10, bh.x, bh.y, 60);
+                    grad.addColorStop(0, "black");
+                    grad.addColorStop(0.4, "rgba(0,0,0,1)");
+                    grad.addColorStop(0.5, "rgba(255, 100, 50, 0.8)"); // Accretion inner
+                    grad.addColorStop(0.6, "rgba(100, 0, 255, 0.2)"); // Accretion outer
+                    grad.addColorStop(1, "rgba(0,0,0,0)");
+                    
+                    canvasCtx.fillStyle = grad;
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(bh.x, bh.y, 60, 0, PI2);
+                    canvasCtx.fill();
+                    
+                    // Photon Sphere Ring
+                    canvasCtx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+                    canvasCtx.lineWidth = 2;
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(bh.x, bh.y, 22, 0, PI2);
+                    canvasCtx.stroke();
+                } 
+                else if (idleController.currentAnim === 'COMET_SHOWER') {
+                    if (elapsed > 8000) finished = true;
+                } 
+                else if (idleController.currentAnim === 'QUESTION_MARK') {
+                    if (elapsed > 7000) finished = true;
+                }
+                else if (idleController.currentAnim === 'SOLAR_FLYBY') {
+                    const sf = idleController.solarFlyby;
+                    sf.x += sf.vx;
+                    sf.y += sf.vy;
+                    if (sf.x > width + 300) finished = true;
+                }
+
+                if (finished) {
+                    idleController.state = 'WAITING';
+                    idleController.lastActionTime = Date.now();
+                    idleController.currentAnim = null;
+                    interactionMode = 'IDLE'; 
+                    // initParticles() removed to prevent static refresh
+                }
+            }
+        }
+
+        // --- Touch Handling ---
+        function handleTouchStart(e) {
+            e.preventDefault();
+            isTouchActive = true;
+            touchStartTimestamp = Date.now();
+            idleController.lastActionTime = Date.now();
+            
+            const touch = e.changedTouches[0];
+            targetPosition.x = touch.clientX;
+            targetPosition.y = touch.clientY;
+            
+            // Start basic interaction
+            interactionMode = 'ONE_SIMPLE';
+            
+            // If previous hand state was complex, reset to gravity, else keep it
+            if (!['GRAVITY', 'REPULSOR', 'SPIDER'].includes(hand1State)) {
+                hand1State = 'GRAVITY';
+            }
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (isTouchActive) {
+                const touch = e.changedTouches[0];
+                targetPosition.x = touch.clientX;
+                targetPosition.y = touch.clientY;
+                idleController.lastActionTime = Date.now();
+            }
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            isTouchActive = false;
+            
+            // Detect Tap (short duration)
+            const duration = Date.now() - touchStartTimestamp;
+            if (duration < 200) {
+                // Cycle modes on tap
+                if (hand1State === 'GRAVITY') hand1State = 'REPULSOR';
+                else if (hand1State === 'REPULSOR') hand1State = 'SPIDER';
+                else hand1State = 'GRAVITY';
+                
+                // Show mode briefly
+                handStatus.innerText = "MODE: " + hand1State;
+                handStatus.style.color = "#FFF";
+                setTimeout(() => { handStatus.style.color = "#555"; }, 1000);
+            }
+            
+            // Reset to IDLE after a delay if no hands
+            setTimeout(() => {
+                if (!isTouchActive && interactionMode === 'ONE_SIMPLE') {
+                    interactionMode = 'IDLE';
+                }
+            }, 1000);
+        }
+
+        function animate() {
+            const trailAlpha = interactionMode === 'TWO_WORMHOLE' ? 0.1 : 0.3; 
+            canvasCtx.fillStyle = `rgba(5, 5, 5, ${trailAlpha})`;
+            canvasCtx.fillRect(0, 0, width, height);
+
+            if (isRGBMode) globalHue = (globalHue + 5) % 360;
+
+            // --- ANIMATION STATE MACHINE UPDATE ---
+            updateIdleState();
+
+            drawStars();
+
+            if (sequenceActive) {
+                const timeElapsed = (Date.now() - sequenceStartTime) / 1000;
+                if (timeElapsed > 30.0) { 
+                    sequenceActive = false; 
+                    handStatus.innerText = "SEQUENCE COMPLETE";
+                } else {
+                    if (timeElapsed < 5.0) handStatus.innerText = "STAR WARS";
+                    else if (timeElapsed < 12.0) handStatus.innerText = ">> IGNITION <<";
+                    else if (timeElapsed < 16.0) handStatus.innerText = ">> CROSS SABERS <<";
+                    else if (timeElapsed < 20.0) handStatus.innerText = ">> CLASH <<";
+                    else if (timeElapsed < 22.0) handStatus.innerText = ">> EXPLOSION <<";
+                    else handStatus.innerText = ">> COCKPIT VIEW ONLINE <<";
+                }
+            } 
+            else if (interactionMode === 'PLAYING_ANIMATION') {
+                handStatus.innerText = "IDLE: " + idleController.currentAnim.replace('_', ' ');
+            }
+            else if (interactionMode === 'TWO_BLACK_HOLE') {
+                handStatus.innerText = ">> SINGULARITY FORMED <<";
+            } else if (interactionMode !== 'IDLE') {
+                canvasCtx.lineWidth = 3;
+                
+                const drawCursor = (x, y, label, state) => {
+                    canvasCtx.beginPath();
+                    // Larger cursor for touch
+                    canvasCtx.arc(x, y, isTouchActive ? 40 : 20, 0, PI2);
+                    let color = '#00FFEA';
+                    if (state === 'REPULSOR') color = '#FF0000';
+                    else if (state === 'SPIDER') color = '#FF3333';
+                    else if (state === 'SINGULARITY') color = '#FFFF00';
+                    else if (state === 'HEART') color = '#FF00FF';
+                    else if (state === 'PEACE') color = '#00FF00';
+                    else if (state === 'WORMHOLE') color = '#FFFFFF';
+                    else if (state === 'THUMBS_UP') color = '#00FFAA';
+                    else if (state === 'OK_SIGN') color = '#FFAA00';
+                    else if (state === 'SW_CONFIRM') color = '#AA00FF';
+                    else if (state === 'ALIGNING') color = '#FFCC00';
+                    
+                    canvasCtx.strokeStyle = color;
+                    canvasCtx.stroke();
+                    
+                    // Don't draw text under finger if touch active
+                    if (!isTouchActive) {
+                        canvasCtx.fillStyle = "white";
+                        canvasCtx.font = "12px monospace";
+                        canvasCtx.fillText(label, x + 25, y + 5);
+                    }
+                };
+
+                if (interactionMode === 'TWO_WORMHOLE') {
+                    const cx = (targetPosition.x + targetPosition2.x) / 2;
+                    const cy = (targetPosition.y + targetPosition2.y) / 2;
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(cx, cy, 10, 0, PI2);
+                    canvasCtx.fillStyle = "#FFFFFF";
+                    canvasCtx.fill();
+                    
+                    drawCursor(targetPosition.x, targetPosition.y, "ANCHOR A", "WORMHOLE");
+                    drawCursor(targetPosition2.x, targetPosition2.y, "ANCHOR B", "WORMHOLE");
+
+                } else if (interactionMode === 'TWO_INDEPENDENT') {
+                    if (hand1State === 'SW_CONFIRM' || hand2State === 'SW_CONFIRM') {
+                        handStatus.innerText = "AWAITING CONFIRMATION...";
+                    } 
+                    if (hand1State === 'ALIGNING' && hand2State === 'ALIGNING') {
+                        handStatus.innerText = "ALIGNING...";
+                    }
+                    drawCursor(targetPosition.x, targetPosition.y, hand1State, hand1State);
+                    drawCursor(targetPosition2.x, targetPosition2.y, hand2State, hand2State);
+                } else if (interactionMode === 'ONE_SIMPLE') {
+                      drawCursor(targetPosition.x, targetPosition.y, hand1State, hand1State);
+                      
+                      if (hand1State === 'OK_SIGN') {
+                          SOLAR_SYSTEM.forEach((p, idx) => {
+                             if (idx > 0) { 
+                                 canvasCtx.beginPath();
+                                 canvasCtx.strokeStyle = `rgba(255, 255, 255, 0.15)`;
+                                 canvasCtx.lineWidth = 1;
+                                 // Scale orbit rings
+                                 canvasCtx.arc(targetPosition.x, targetPosition.y, p.r * globalScale, 0, PI2);
+                                 canvasCtx.stroke();
+                             }
+                          });
+                      } else if (hand1State === 'SW_CONFIRM') {
+                          handStatus.innerText = "AWAITING CONFIRMATION... (HOLD 2s)";
+                      }
+                      
+                      if (isTouchActive) {
+                          handStatus.innerText = "TOUCH CONTROL: " + hand1State + " (TAP TO SWITCH)";
+                      }
+                } else {
+                    let label = interactionMode.replace('TWO_', '');
+                    drawCursor(targetPosition.x, targetPosition.y, label, label);
+                }
+            }
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        function isFingerExtended(landmarks, fingerTipIdx, fingerPipIdx) {
+            const wrist = landmarks[0];
+            const tip = landmarks[fingerTipIdx];
+            const pip = landmarks[fingerPipIdx];
+            const dTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+            const dPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
+            return dTip > dPip;
+        }
+
+        function checkCShape(landmarks) {
+            const wrist = landmarks[0];
+            const middleMCP = landmarks[9];
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const handScale = Math.hypot(middleMCP.x - wrist.x, middleMCP.y - wrist.y);
+            const gap = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+            const indexDist = Math.hypot(indexTip.x - wrist.x, indexTip.y - wrist.y);
+            const isCurved = indexDist < 1.7 * handScale && indexDist > 0.8 * handScale;
+            const validGap = gap > 0.3 * handScale && gap < 1.3 * handScale;
+            return validGap && isCurved;
+        }
+
+        function checkThumbsUp(landmarks) {
+            const wrist = landmarks[0];
+            const thumbTip = landmarks[4];
+            const thumbIP = landmarks[3];
+            const thumbMCP = landmarks[2];
+            const indexMCP = landmarks[5];
+            
+            const thumbIsUp = (thumbTip.y < thumbIP.y) && (thumbTip.y < indexMCP.y);
+            const indexCurled = !isFingerExtended(landmarks, 8, 6);
+            const middleCurled = !isFingerExtended(landmarks, 12, 10);
+            const ringCurled = !isFingerExtended(landmarks, 16, 14);
+            const pinkyCurled = !isFingerExtended(landmarks, 20, 18);
+            const thumbExt = Math.hypot(thumbTip.x - thumbMCP.x, thumbTip.y - thumbMCP.y) > 30;
+
+            return thumbIsUp && thumbExt && indexCurled && middleCurled && ringCurled && pinkyCurled;
+        }
+
+        function checkThreeFingers(landmarks) {
+            const indexUp = isFingerExtended(landmarks, 8, 6);
+            const middleUp = isFingerExtended(landmarks, 12, 10);
+            const ringUp = isFingerExtended(landmarks, 16, 14);
+            
+            const pinkyDown = !isFingerExtended(landmarks, 20, 18);
+            const thumbTip = landmarks[4];
+            const thumbTucked = thumbTip.y > landmarks[5].y; 
+
+            return indexUp && middleUp && ringUp && pinkyDown && thumbTucked;
+        }
+
+        function checkOKSign(landmarks) {
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const middleUp = isFingerExtended(landmarks, 12, 10);
+            const ringUp = isFingerExtended(landmarks, 16, 14);
+            const pinkyUp = isFingerExtended(landmarks, 20, 18);
+            const wrist = landmarks[0];
+            
+            const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+            const handSize = Math.hypot(landmarks[9].x - wrist.x, landmarks[9].y - wrist.y);
+            const isPinching = pinchDist < 0.3 * handSize;
+
+            return isPinching && middleUp && ringUp && pinkyUp;
+        }
+
+        function getHandState(landmarks, handIdx) {
+            const indexUp = isFingerExtended(landmarks, 8, 6);
+            const middleUp = isFingerExtended(landmarks, 12, 10);
+            const ringUp = isFingerExtended(landmarks, 16, 14);
+            const pinkyUp = isFingerExtended(landmarks, 20, 18);
+            const thumbUp = isFingerExtended(landmarks, 4, 2);
+
+            if (checkThreeFingers(landmarks)) {
+                if (swConfirmTimer === 0) swConfirmTimer = Date.now();
+                else if (Date.now() - swConfirmTimer > 2000) { 
+                    if (!sequenceActive) {
+                        sequenceActive = true;
+                        sequenceStartTime = Date.now();
+                        triggerAchievement('starwars');
+                    }
+                    swConfirmTimer = 0; 
+                    return 'SW_CONFIRMED';
+                }
+                return 'SW_CONFIRM';
+            } 
+
+            if (checkThumbsUp(landmarks)) return 'THUMBS_UP';
+            
+            if (checkOKSign(landmarks)) {
+                return 'ALIGNING'; 
+            } else {
+                if (handIdx === 1) okTimer1 = 0;
+                else okTimer2 = 0;
+            }
+
+            if (checkCShape(landmarks)) return 'SINGULARITY';
+
+            if (indexUp && pinkyUp && thumbUp && !middleUp && !ringUp) return 'SPIDER';
+            if (indexUp && middleUp && !ringUp && !pinkyUp) return 'PEACE';
+            if (!indexUp && !middleUp && !ringUp && !pinkyUp) return 'REPULSOR';
+
+            return 'GRAVITY';
+        }
+
+        function checkHeartGesture(hand1, hand2) {
+            const h1Index = hand1[8];
+            const h1Thumb = hand1[4];
+            const h2Index = hand2[8];
+            const h2Thumb = hand2[4];
+            const dIndex = Math.hypot(h1Index.x - h2Index.x, h1Index.y - h2Index.y);
+            const dThumb = Math.hypot(h1Thumb.x - h2Thumb.x, h1Thumb.y - h2Thumb.y);
+            return dIndex < 0.08 && dThumb < 0.08;
+        }
+
+        function onResults(results) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                if (!simulationStarted) {
+                    simulationStarted = true;
+                    introText.innerText = "LINK ESTABLISHED";
+                    introText.classList.add('glitch');
+                    loadingBar.style.width = "100%";
+                    setTimeout(() => {
+                        uiLayer.style.opacity = 0;
+                        setTimeout(() => uiLayer.style.display = 'none', 1000);
+                    }, 800);
+                }
+            }
+
+            // Priority: Touch > Hands. If touching, ignore hands updates.
+            if (isTouchActive) return;
+
+            const numHands = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+            
+            if (numHands > 0) {
+                idleController.lastActionTime = Date.now();
+                // Reset to waiting if interrupted
+                if (idleController.state === 'PLAYING') {
+                      idleController.state = 'WAITING';
+                      idleController.currentAnim = null;
+                      interactionMode = 'IDLE'; // Ensure we reset mode if interrupted by hand
+                }
+            }
+
+            let finding3Fingers = false;
+            
+            if (numHands > 0) {
+                for(let i=0; i<numHands; i++) {
+                    if(checkThreeFingers(results.multiHandLandmarks[i])) finding3Fingers = true;
+                }
+            }
+            if(!finding3Fingers) swConfirmTimer = 0; 
+
+            if (sequenceActive) {
+                return; 
+            }
+
+            if (numHands === 2) {
+                const h1Raw = results.multiHandLandmarks[0];
+                const h2Raw = results.multiHandLandmarks[1];
+
+                if (checkHeartGesture(h1Raw, h2Raw)) {
+                    interactionMode = 'TWO_HEART';
+                    const h1Index = h1Raw[8], h2Index = h2Raw[8];
+                    const h1Thumb = h1Raw[4], h2Thumb = h2Raw[4];
+                    targetPosition.x = (1 - (h1Index.x + h2Index.x + h1Thumb.x + h2Thumb.x)/4) * width;
+                    targetPosition.y = (h1Index.y + h2Index.y + h1Thumb.y + h2Thumb.y)/4 * height;
+                    handStatus.innerText = "DUAL: HEART SHAPE";
+                } else {
+                    hand1State = getHandState(h1Raw, 1);
+                    hand2State = getHandState(h2Raw, 2);
+                    
+                    // Prioritize ALIGNING for Dual Hand Interaction
+                    const isLeftAligning = (hand1State === 'ALIGNING' || hand1State === 'OK_SIGN');
+                    const isRightAligning = (hand2State === 'ALIGNING' || hand2State === 'OK_SIGN');
+
+                    if (isLeftAligning && isRightAligning) {
+                        if (dualGalaxyTimer === 0) dualGalaxyTimer = Date.now();
+                        else if (Date.now() - dualGalaxyTimer > 3000) {
+                            interactionMode = 'TWO_BLACK_HOLE';
+                            dualGalaxyTimer = 0;
+                        }
+                    } else {
+                        dualGalaxyTimer = 0;
+                    }
+
+                    // Reset Black Hole mode if gestures lost
+                    if (interactionMode === 'TWO_BLACK_HOLE' && (!isLeftAligning || !isRightAligning)) {
+                        interactionMode = 'TWO_INDEPENDENT';
+                    }
+
+                    // Check Single Hand Timers for Solar System (Visual Feedback only if not dual)
+                    if (interactionMode !== 'TWO_BLACK_HOLE') {
+                        if (hand1State === 'ALIGNING') {
+                            if (okTimer1 === 0) okTimer1 = Date.now();
+                            else if (Date.now() - okTimer1 > 1000) hand1State = 'OK_SIGN';
+                        }
+                        if (hand2State === 'ALIGNING') {
+                            if (okTimer2 === 0) okTimer2 = Date.now();
+                            else if (Date.now() - okTimer2 > 1000) hand2State = 'OK_SIGN';
+                        }
+                    }
+
+                    if (interactionMode !== 'TWO_BLACK_HOLE') {
+                        if (hand1State === 'SINGULARITY' && hand2State === 'SINGULARITY') {
+                            interactionMode = 'TWO_WORMHOLE';
+                            const x1 = (1 - h1Raw[9].x) * width; 
+                            const y1 = h1Raw[9].y * height;
+                            const x2 = (1 - h2Raw[9].x) * width; 
+                            const y2 = h2Raw[9].y * height;
+                            targetPosition.x = x1; targetPosition.y = y1;
+                            targetPosition2.x = x2; targetPosition2.y = y2;
+                            handStatus.innerText = ">> INFINITY LOOP STABLE <<";
+                        } else {
+                            interactionMode = 'TWO_INDEPENDENT';
+                            const x1 = (1 - h1Raw[9].x) * width; 
+                            const y1 = h1Raw[9].y * height;
+                            const x2 = (1 - h2Raw[9].x) * width; 
+                            const y2 = h2Raw[9].y * height;
+                            targetPosition.x = x1; targetPosition.y = y1;
+                            targetPosition2.x = x2; targetPosition2.y = y2;
+                        }
+                    } else {
+                         // Update positions for black hole
+                        const x1 = (1 - h1Raw[9].x) * width; 
+                        const y1 = h1Raw[9].y * height;
+                        const x2 = (1 - h2Raw[9].x) * width; 
+                        const y2 = h2Raw[9].y * height;
+                        targetPosition.x = x1; targetPosition.y = y1;
+                        targetPosition2.x = x2; targetPosition2.y = y2;
+                    }
+                }
+            } else if (numHands === 1) {
+                const h1Raw = results.multiHandLandmarks[0];
+                interactionMode = 'ONE_SIMPLE';
+                hand1State = getHandState(h1Raw, 1);
+                
+                if (hand1State === 'ALIGNING') {
+                    if (okTimer1 === 0) okTimer1 = Date.now();
+                    else if (Date.now() - okTimer1 > 1000) hand1State = 'OK_SIGN';
+                }
+
+                targetPosition.x = (1 - h1Raw[9].x) * width;
+                targetPosition.y = h1Raw[9].y * height;
+                
+                if (hand1State === 'SPIDER') handStatus.innerText = "SINGLE: SPIDER-MAN";
+                else if (hand1State === 'PEACE') handStatus.innerText = "SINGLE: PEACE HAND";
+                else if (hand1State === 'REPULSOR') handStatus.innerText = "SINGLE: REPULSOR";
+                else if (hand1State === 'SINGULARITY') handStatus.innerText = "SINGLE: SINGULARITY";
+                else if (hand1State === 'THUMBS_UP') handStatus.innerText = "SINGLE: PIXEL HAND";
+                else if (hand1State === 'OK_SIGN') handStatus.innerText = "SINGLE: SOLAR SYSTEM";
+                else if (hand1State === 'ALIGNING') handStatus.innerText = "ALIGNING PLANETS...";
+                else if (hand1State === 'SW_CONFIRM') handStatus.innerText = "HOLD FOR STAR WARS";
+                else handStatus.innerText = "SINGLE: GRAVITY";
+            
+            } else {
+                // Let updateIdleState handle the mode switching
+                if (interactionMode !== 'PLAYING_ANIMATION') {
+                    interactionMode = 'IDLE';
+                }
+            }
+        }
+
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        // Mobile optimization: Use lighter model config if mobile
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: isMobile ? 0 : 1, // Use Lite model on mobile
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+
+        hands.onResults(onResults);
+
+        window.onload = () => {
+            resize();
+            initStars();
+            initParticles();
+            window.addEventListener('resize', resize);
+            
+            // Add Touch Listeners
+            canvasElement.addEventListener('touchstart', handleTouchStart, {passive: false});
+            canvasElement.addEventListener('touchmove', handleTouchMove, {passive: false});
+            canvasElement.addEventListener('touchend', handleTouchEnd, {passive: false});
+
+            // Handle Splash Screen
+            const splash = document.getElementById('splash-screen');
+            setTimeout(() => {
+                splash.style.opacity = 0;
+                let progress = 0;
+                const loadInterval = setInterval(() => {
+                    progress += 5;
+                    if(progress > 90) clearInterval(loadInterval);
+                    loadingBar.style.width = `${progress}%`;
+                }, 50);
+            }, 2500); 
+            
+            // Mobile Optimization: Lower resolution for MediaPipe processing
+            const camWidth = isMobile ? 320 : 640;
+            const camHeight = isMobile ? 240 : 480;
+
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    // Skip every other frame on mobile if needed for performance, 
+                    // but browser camera rAF is usually self-limiting.
+                    await hands.send({image: videoElement});
+                },
+                width: camWidth,
+                height: camHeight
+            });
+
+            instructionText.style.display = 'block';
+            camera.start().then(() => {
+                introText.innerText = "SEARCHING FOR HAND PATTERN...";
+            }).catch(err => {
+                introText.innerText = "CAMERA ERROR / TOUCH ENABLED";
+                introText.style.color = "#FF0055";
+                // Even if camera fails, simulation runs and touch works
+            });
+
+            animate();
+        };
+
+    </script>
+</body>
+</html>
