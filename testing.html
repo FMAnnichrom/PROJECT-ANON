@@ -315,6 +315,10 @@
         let lastTouchTime = 0;
         let touchStartTimestamp = 0;
         
+        // Touch Mode State
+        let currentTouchMode = 'GRAVITY';
+        let lastTapTime = 0;
+        
         // Global Modes
         let interactionMode = 'IDLE'; 
         
@@ -1248,56 +1252,72 @@
         function handleTouchStart(e) {
             e.preventDefault();
             isTouchActive = true;
-            touchStartTimestamp = Date.now();
             idleController.lastActionTime = Date.now();
             
-            const touch = e.changedTouches[0];
-            targetPosition.x = touch.clientX;
-            targetPosition.y = touch.clientY;
-            
-            // Start basic interaction
-            interactionMode = 'ONE_SIMPLE';
-            
-            // If previous hand state was complex, reset to gravity, else keep it
-            if (!['GRAVITY', 'REPULSOR', 'SPIDER'].includes(hand1State)) {
-                hand1State = 'GRAVITY';
+            const now = Date.now();
+            if (e.touches.length === 1) {
+                if (now - lastTapTime < 300) {
+                    // Double Tap detected
+                    if (currentTouchMode === 'GRAVITY') currentTouchMode = 'REPULSOR';
+                    else if (currentTouchMode === 'REPULSOR') currentTouchMode = 'PEACE';
+                    else currentTouchMode = 'GRAVITY';
+                    
+                    // Visual feedback
+                    handStatus.innerText = "MODE SWITCH: " + currentTouchMode;
+                    handStatus.style.color = "#00FFEA";
+                    setTimeout(() => handStatus.style.color = "#555", 1000);
+                }
+                lastTapTime = now;
             }
+
+            updateTouchState(e);
         }
 
         function handleTouchMove(e) {
             e.preventDefault();
             if (isTouchActive) {
-                const touch = e.changedTouches[0];
-                targetPosition.x = touch.clientX;
-                targetPosition.y = touch.clientY;
                 idleController.lastActionTime = Date.now();
+                updateTouchState(e);
             }
         }
 
         function handleTouchEnd(e) {
             e.preventDefault();
-            isTouchActive = false;
-            
-            // Detect Tap (short duration)
-            const duration = Date.now() - touchStartTimestamp;
-            if (duration < 200) {
-                // Cycle modes on tap
-                if (hand1State === 'GRAVITY') hand1State = 'REPULSOR';
-                else if (hand1State === 'REPULSOR') hand1State = 'SPIDER';
-                else hand1State = 'GRAVITY';
-                
-                // Show mode briefly
-                handStatus.innerText = "MODE: " + hand1State;
-                handStatus.style.color = "#FFF";
-                setTimeout(() => { handStatus.style.color = "#555"; }, 1000);
+            if (e.touches.length === 0) {
+                isTouchActive = false;
+                setTimeout(() => {
+                    if (!isTouchActive && interactionMode === 'ONE_SIMPLE') {
+                        interactionMode = 'IDLE';
+                    }
+                }, 1000);
+            } else {
+                updateTouchState(e);
             }
+        }
+
+        function updateTouchState(e) {
+            interactionMode = 'ONE_SIMPLE';
             
-            // Reset to IDLE after a delay if no hands
-            setTimeout(() => {
-                if (!isTouchActive && interactionMode === 'ONE_SIMPLE') {
-                    interactionMode = 'IDLE';
-                }
-            }, 1000);
+            // Calculate Centroid
+            let tx = 0, ty = 0;
+            const count = e.touches.length;
+            for(let i=0; i<count; i++) {
+                tx += e.touches[i].clientX;
+                ty += e.touches[i].clientY;
+            }
+            targetPosition.x = tx / count;
+            targetPosition.y = ty / count;
+
+            // Logic based on finger count
+            if (count === 1) {
+                hand1State = currentTouchMode;
+            } else if (count === 2) {
+                hand1State = 'OK_SIGN'; // Align/Solar
+                handStatus.innerText = "MULTI-TOUCH: ALIGNMENT";
+            } else if (count >= 3) {
+                hand1State = 'SINGULARITY';
+                handStatus.innerText = "MULTI-TOUCH: SINGULARITY";
+            }
         }
 
         function animate() {
@@ -1399,8 +1419,8 @@
                           handStatus.innerText = "AWAITING CONFIRMATION... (HOLD 2s)";
                       }
                       
-                      if (isTouchActive) {
-                          handStatus.innerText = "TOUCH CONTROL: " + hand1State + " (TAP TO SWITCH)";
+                      if (isTouchActive && !['OK_SIGN', 'SINGULARITY'].includes(hand1State)) {
+                          handStatus.innerText = "TOUCH: " + hand1State + " (DOUBLE TAP TO SWITCH)";
                       }
                 } else {
                     let label = interactionMode.replace('TWO_', '');
