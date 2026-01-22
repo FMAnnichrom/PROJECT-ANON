@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neural Pixel Space</title>
     
     <!-- MediaPipe Dependencies -->
@@ -17,6 +17,8 @@
             background-color: #050505;
             font-family: 'Courier New', Courier, monospace;
             user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* Prevent default touch actions */
         }
 
         #canvas-container {
@@ -47,22 +49,23 @@
             z-index: 10;
             background: rgba(0, 0, 0, 0.85);
             transition: opacity 1s ease-out;
-            opacity: 0; /* Hidden initially for splash */
+            opacity: 0;
         }
 
         .hud-text {
             color: #00ffea;
             text-shadow: 0 0 10px #00ffea;
-            font-size: 1.5rem;
+            font-size: clamp(1rem, 4vw, 1.5rem); /* Responsive font size */
             text-align: center;
             margin-bottom: 20px;
             letter-spacing: 2px;
             opacity: 1;
             transition: opacity 0.5s;
+            padding: 0 20px;
         }
 
         .status-indicator {
-            width: 200px;
+            width: min(80%, 300px);
             height: 4px;
             background: #333;
             margin-top: 10px;
@@ -89,9 +92,9 @@
             background: rgba(0, 255, 234, 0.1);
             border: 1px solid #00ffea;
             color: #fff;
-            padding: 15px 30px;
+            padding: 10px 20px;
             border-radius: 4px;
-            font-size: 1.2rem;
+            font-size: clamp(0.9rem, 3vw, 1.2rem);
             text-shadow: 0 0 5px #00ffea;
             box-shadow: 0 0 20px rgba(0, 255, 234, 0.3);
             opacity: 0;
@@ -100,6 +103,8 @@
             pointer-events: none;
             text-align: center;
             backdrop-filter: blur(5px);
+            width: max-content;
+            max-width: 90vw;
         }
 
         #achievement-popup.visible {
@@ -111,7 +116,7 @@
             position: absolute;
             top: 20px;
             right: 20px;
-            width: 200px;
+            width: min(200px, 40vw); /* Prevent overlap on small screens */
             padding: 15px;
             background: rgba(0, 20, 40, 0.8);
             border: 1px solid #00ffea;
@@ -122,6 +127,18 @@
             flex-direction: column;
             gap: 15px;
             backdrop-filter: blur(4px);
+            pointer-events: auto; /* Ensure clickable */
+        }
+
+        /* Landscape adjustment for controls */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #controls {
+                top: 10px;
+                right: 10px;
+                padding: 10px;
+                transform: scale(0.8);
+                transform-origin: top right;
+            }
         }
 
         .control-group {
@@ -131,29 +148,31 @@
         }
 
         label {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             font-weight: bold;
         }
 
         input[type="range"] {
             width: 100%;
             accent-color: #00ffea;
+            height: 20px; /* Taller touch target */
         }
 
         button#rgb-btn {
             background: transparent;
             border: 1px solid #ff0055;
             color: #ff0055;
-            padding: 8px;
+            padding: 12px 8px; /* Larger touch target */
             font-family: inherit;
             font-weight: bold;
+            font-size: 0.8rem;
             cursor: pointer;
             transition: all 0.2s;
             text-shadow: 0 0 5px #ff0055;
             box-shadow: 0 0 5px #ff0055 inset;
         }
 
-        button#rgb-btn:hover {
+        button#rgb-btn:hover, button#rgb-btn:active {
             background: #ff0055;
             color: white;
             box-shadow: 0 0 15px #ff0055;
@@ -186,7 +205,7 @@
 
         .glitch {
             animation: glitch 0.5s infinite;
-            display: none;
+            display: inline-block;
         }
 
         #debug-info {
@@ -194,8 +213,10 @@
             bottom: 20px;
             left: 20px;
             color: #555;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             pointer-events: none;
+            max-width: 60%;
+            line-height: 1.4;
         }
 
         /* Splash Screen Animation */
@@ -215,12 +236,12 @@
         
         <!-- SPLASH SCREEN -->
         <div id="splash-screen" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none;">
-            <div style="animation: textGlow 2.5s ease-in-out forwards; text-align: center;">
-                <div style="color: #00ffea; font-size: 2.5rem; letter-spacing: 5px; font-weight: bold; margin-bottom: 15px;">
+            <div style="animation: textGlow 2.5s ease-in-out forwards; text-align: center; padding: 0 20px;">
+                <div style="color: #00ffea; font-size: clamp(1.5rem, 5vw, 2.5rem); letter-spacing: 5px; font-weight: bold; margin-bottom: 15px;">
                     NEURAL PIXEL SPACE
                 </div>
-                <div style="color: white; font-size: 1.2rem; letter-spacing: 3px; font-family: 'Courier New', Courier, monospace;">
-                    MADE BY DEEPANSHU SHARMA
+                <div style="color: white; font-size: clamp(0.8rem, 3vw, 1.2rem); letter-spacing: 3px; font-family: 'Courier New', Courier, monospace;">
+                    MOBILE OPTIMIZED
                 </div>
             </div>
         </div>
@@ -232,8 +253,8 @@
 
         <div id="controls">
             <div class="control-group">
-                <label>PIXEL DENSITY: <span id="density-val">1200</span></label>
-                <input type="range" id="particle-slider" min="500" max="4000" step="100" value="1200">
+                <label>DENSITY: <span id="density-val">600</span></label>
+                <input type="range" id="particle-slider" min="200" max="3000" step="100" value="600">
             </div>
             <button id="rgb-btn">RGB OVERDRIVE</button>
         </div>
@@ -244,7 +265,7 @@
                 <div id="loading-bar" class="status-bar"></div>
             </div>
             <div id="instruction-text" class="hud-text" style="font-size: 1rem; color: #fff; margin-top: 20px; display:none;">
-                ALLOW CAMERA ACCESS TO BEGIN
+                ALLOW CAMERA OR TOUCH TO BEGIN
             </div>
         </div>
 
@@ -253,7 +274,11 @@
 
     <script>
         // --- Configuration ---
-        let PARTICLE_COUNT = 1200; // Optimized default
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        // Optimize defaults for mobile - Reduced further for performance
+        let PARTICLE_COUNT = isMobile ? 600 : 1200; 
+        
         const COLOR_A = {r: 0, g: 255, b: 234}; // Cyan #00ffea
         const COLOR_B = {r: 255, g: 0, b: 85};  // Magenta #ff0055
         const SPACE_DRAG = 0.94;
@@ -281,10 +306,18 @@
         let width, height;
         let globalHue = 0;
         let isRGBMode = false;
+        let globalScale = 1.0; // Dynamic scale factor for responsive shapes
         
         // Interaction State
         let targetPosition = { x: -1000, y: -1000 };
         let targetPosition2 = { x: -1000, y: -1000 }; 
+        let isTouchActive = false;
+        let lastTouchTime = 0;
+        let touchStartTimestamp = 0;
+        
+        // Touch Mode State
+        let currentTouchMode = 'GRAVITY';
+        let lastTapTime = 0;
         
         // Global Modes
         let interactionMode = 'IDLE'; 
@@ -295,6 +328,10 @@
 
         let simulationStarted = false;
 
+        // Update Slider UI
+        particleSlider.value = PARTICLE_COUNT;
+        densityVal.innerText = PARTICLE_COUNT;
+
         // --- IDLE ANIMATION CONTROLLER ---
         const idleController = {
             state: 'WAITING', // WAITING, PLAYING
@@ -302,7 +339,7 @@
             waitDuration: 10000,
             currentAnim: null,
             animStartTime: 0,
-            animIndex: 0, // Added for sequential playback
+            animIndex: 0, 
             
             // Animation Objects
             blackHole: { x: 0, y: 0, vx: 0, vy: 0, active: false },
@@ -319,14 +356,21 @@
             solar: false,
             starwars: false,
             blackhole: false,
-            birth: false
+            birth: false,
+            spiderfamily: false,
+            rude: false
         };
 
         // Gestures Timers
         let okTimer1 = 0;
         let okTimer2 = 0;
+        let rudeTimer1 = 0;
+        let rudeTimer2 = 0;
+        let thumbsUpTimer1 = 0;
+        let thumbsUpTimer2 = 0;
         let swConfirmTimer = 0;
         let dualGalaxyTimer = 0;
+        let spiderFamilyTimer = 0;
 
         // Sequence State
         let sequenceActive = false;
@@ -349,11 +393,13 @@
             unlockedAchievements[type] = true;
             
             let text = "";
-            if (type === 'balance') text = "PERFECT BALANCE (REPULSOR + GRAVITY)";
+            if (type === 'balance') text = "PERFECT BALANCE";
             if (type === 'galaxy') text = "GALACTIC WORMHOLE STABILIZED";
-            if (type === 'solar') text = "GALAXY IN THE PALM OF MY HAND";
-            if (type === 'starwars') text = "THE FORCE IS STRONG WITH THIS ONE";
-            if (type === 'blackhole') text = "EVENT HORIZON REACHED";
+            if (type === 'solar') text = "GALAXY IN PALM";
+            if (type === 'starwars') text = "FORCE IS STRONG";
+            if (type === 'blackhole') text = "EVENT HORIZON";
+            if (type === 'spiderfamily') text = "SPIDER FAMILY UNLOCKED";
+            if (type === 'rude') text = "HAH YOU REALLY THOUGHT OF IT DIDN'T YOU";
             
             achText.innerText = text;
             achievementPopup.classList.add('visible');
@@ -378,49 +424,96 @@
 
         // --- Geometric Functions ---
         function getHeartPoint(t, scale) {
+            const adjustedScale = scale * globalScale;
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
-            return { x: x * scale, y: y * scale };
+            return { x: x * adjustedScale, y: y * adjustedScale };
         }
 
         function getQuestionMarkPoint(t, scale, cx, cy) {
-            // t is 0..1
-            // Curve: 0.0 - 0.5
-            // Line: 0.5 - 0.7
-            // Dot: 0.7 - 0.8
-            // Text "NEXT": 0.8 - 1.0
-            
+            const s = scale * globalScale;
             let x = 0, y = 0;
             
             if (t < 0.5) {
-                // Hook
                 const nt = t / 0.5;
-                const angle = -Math.PI + (nt * 1.5 * Math.PI); // -180 to 90
-                const radius = scale * 10;
+                const angle = -Math.PI + (nt * 1.5 * Math.PI); 
+                const radius = s * 10;
                 x = cx + Math.cos(angle) * radius;
-                y = (cy - scale * 10) + Math.sin(angle) * radius;
-                if(nt > 0.8) x -= (nt-0.8)*20; // tuck in
+                y = (cy - s * 10) + Math.sin(angle) * radius;
+                if(nt > 0.8) x -= (nt-0.8)*20*globalScale;
             } else if (t < 0.7) {
-                // Vertical Line
                 const nt = (t - 0.5) / 0.2;
                 x = cx;
-                y = cy + (nt * scale * 10);
+                y = cy + (nt * s * 10);
             } else if (t < 0.8) {
-                // Dot
                 const nt = (t - 0.7) / 0.1;
                 const angle = nt * Math.PI * 4;
-                x = cx + Math.cos(angle) * 5;
-                y = cy + scale * 15 + Math.sin(angle) * 5;
+                x = cx + Math.cos(angle) * 5 * globalScale;
+                y = cy + s * 15 + Math.sin(angle) * 5 * globalScale;
             } else {
-                // "NEXT" text (simplified to a line of particles below)
                 const nt = (t - 0.8) / 0.2;
-                x = (cx - scale * 8) + (nt * scale * 16);
-                y = cy + scale * 25;
+                x = (cx - s * 8) + (nt * s * 16);
+                y = cy + s * 25;
             }
             return {x, y};
         }
 
+        function getRudeGesturePoint(t, scale) {
+            const s = scale * globalScale;
+            let x, y;
+            
+            // Draw Outline: Fist box + Straight middle finger
+            if (t < 0.25) { // Middle finger (Straight Up)
+                const lt = t / 0.25; 
+                // Outline: Up left, Over top, Down right
+                if (lt < 0.4) { x = -1.2; y = - (lt/0.4)*18; }
+                else if (lt < 0.6) { x = -1.2 + ((lt-0.4)/0.2)*2.4; y = -18; }
+                else { x = 1.2; y = -18 + ((lt-0.6)/0.4)*18; }
+            } else { // Fist (Curled fingers)
+                const lt = (t - 0.25) / 0.75;
+                // Boxy shape for fist
+                // Index knuckle top
+                if (lt < 0.15) { x = 1.2 + (lt/0.15)*3.8; y = 0; }
+                // Side right
+                else if (lt < 0.35) { x = 5.0; y = ((lt-0.15)/0.2)*12; }
+                // Bottom
+                else if (lt < 0.65) { x = 5.0 - ((lt-0.35)/0.3)*10; y = 12; }
+                // Side left
+                else if (lt < 0.85) { x = -5.0; y = 12 - ((lt-0.65)/0.2)*12; }
+                // Ring/Pinky knuckle top
+                else { x = -5.0 + ((lt-0.85)/0.15)*3.8; y = 0; }
+            }
+            
+            return {x: x*s, y: y*s};
+        }
+
+        function getThumbsUpPoint(t, scale) {
+            const s = scale * globalScale;
+            let x, y;
+            
+            // Draw Outline: Fist + Thumb Up
+            if (t < 0.25) { // Thumb
+                const lt = t / 0.25;
+                // Thumb shape sticking out left-ish top
+                if (lt < 0.4) { x = -4 + (lt/0.4)*1; y = -5 - (lt/0.4)*8; } // Up angled
+                else if (lt < 0.6) { x = -3 + ((lt-0.4)/0.2)*3; y = -13; } // Top
+                else { x = 0; y = -13 + ((lt-0.6)/0.4)*13; } // Down to knuckles
+            } else { // Fist
+                const lt = (t - 0.25) / 0.75;
+                // Knuckles top (Index to Pinky)
+                if (lt < 0.25) { x = 0 + (lt/0.25)*5; y = 0; }
+                // Right side
+                else if (lt < 0.45) { x = 5; y = ((lt-0.25)/0.2)*12; }
+                // Bottom
+                else if (lt < 0.75) { x = 5 - ((lt-0.45)/0.3)*10; y = 12; }
+                // Left side
+                else { x = -5; y = 12 - ((lt-0.75)/0.25)*17; } // Back up to thumb start
+            }
+            return {x: x*s, y: y*s};
+        }
+
         function getPeaceHandPoint(t, scale) {
+            const s = scale * globalScale;
             let x, y;
             if (t < 0.5) { 
                 const angle = (t / 0.5) * PI2;
@@ -435,19 +528,21 @@
                 x = 2.5 + (2 * lt);    
                 y = 0 - (15 * lt);    
             }
-            return {x: x * scale, y: y * scale};
+            return {x: x * s, y: y * s};
         }
 
         function getHandShapePoint(t, scale) {
+            const s = scale * globalScale;
             const angle = t * PI2;
             let x, y;
             const r = 8 + 6 * Math.cos(5 * angle - Math.PI/2);
             x = r * Math.cos(angle - Math.PI/2);
             y = r * Math.sin(angle - Math.PI/2) + 5;
-            return {x: x * scale * 0.8, y: y * scale * 0.8};
+            return {x: x * s * 0.8, y: y * s * 0.8};
         }
 
         function getSpiderPoint(t, scale) {
+            const s = scale * globalScale;
             let x, y;
             if (t < 0.2) { 
                 const angle = (t / 0.2) * PI2;
@@ -471,7 +566,7 @@
                 y = startY + (extY - startY) * legProgress;
                 if(legProgress > 0.5) y += (legNum % 4 < 2) ? -2 : 2; 
             }
-            return {x: x * scale, y: y * scale};
+            return {x: x * s, y: y * s};
         }
 
         function getStarWarsTextPoint(t, width, height) {
@@ -479,10 +574,11 @@
             const lt = (t * 8) % 1;
             const cx = width / 2;
             const cy = height / 2;
-            const s = width * 0.05; 
+            const s = width * 0.05 * (isMobile ? 1.5 : 1.0); // Larger text on mobile
             const rowY = (letter < 4) ? cy - s * 1.5 : cy + s * 1.5;
             const colX = cx + ((letter % 4) - 1.5) * (s * 2.5);
             let dx = 0, dy = 0;
+            // Simplified vector logic for letter forms
             if (letter === 0 || letter === 7) { 
                 const angle = lt * Math.PI * 2.5; 
                 dx = Math.cos(angle) * s * 0.5; dy = Math.sin(angle) * s * 0.8;
@@ -508,25 +604,32 @@
 
         function getCockpitPoint(t, width, height) {
             let x, y, color = '#00FF00';
+            // Scale points based on screen size
+            const w = width;
+            const h = height;
+            
             if (t < 0.2) {
                 const angle = Math.PI + (t/0.2) * Math.PI;
-                x = Math.cos(angle) * width * 0.5; y = height * 0.3 + Math.sin(angle) * height * 0.2;
+                x = Math.cos(angle) * w * 0.5; y = h * 0.3 + Math.sin(angle) * h * 0.2;
             } else if (t < 0.4) {
                 const lt = (t - 0.2) / 0.2; const angle = Math.PI + (lt * Math.PI);
-                x = Math.cos(angle) * width * 0.6; y = -height * 0.2 + Math.sin(angle) * height * 0.4;
+                x = Math.cos(angle) * w * 0.6; y = -h * 0.2 + Math.sin(angle) * h * 0.4;
             } else if (t < 0.5) {
-                const lt = (t - 0.4) / 0.1; x = 0; y = -height * 0.6 + lt * height * 0.8; 
+                const lt = (t - 0.4) / 0.1; x = 0; y = -h * 0.6 + lt * h * 0.8; 
             } else if (t < 0.7) {
                 const lt = (t - 0.5) / 0.2;
-                if(lt < 0.5) { const angle = lt * 2 * PI2; x = Math.cos(angle) * 60; y = Math.sin(angle) * 60; } 
-                else { const ltt = (lt - 0.5) * 2; if(ltt < 0.5) { x = (ltt - 0.25)*200; y = 0; } else { x = 0; y = (ltt - 0.75)*200; } }
+                const size = 200 * globalScale;
+                if(lt < 0.5) { const angle = lt * 2 * PI2; x = Math.cos(angle) * (60*globalScale); y = Math.sin(angle) * (60*globalScale); } 
+                else { const ltt = (lt - 0.5) * 2; if(ltt < 0.5) { x = (ltt - 0.25)*size; y = 0; } else { x = 0; y = (ltt - 0.75)*size; } }
                 color = '#FF5500'; 
             } else if (t < 0.9) {
                 const lt = (t - 0.7) / 0.2;
-                if (lt < 0.5) { x = -width * 0.3 - lt * 100; y = -height * 0.3 + lt * 200; } 
-                else { x = width * 0.3 + (lt-0.5) * 100; y = -height * 0.3 + (lt-0.5) * 200; }
+                const span = 100 * globalScale;
+                const depth = 200 * globalScale;
+                if (lt < 0.5) { x = -w * 0.3 - lt * span; y = -h * 0.3 + lt * depth; } 
+                else { x = w * 0.3 + (lt-0.5) * span; y = -h * 0.3 + (lt-0.5) * depth; }
             } else {
-                const lt = (t - 0.9) / 0.1; x = (lt - 0.5) * width * 0.4; y = height * 0.4 + Math.sin(lt * 20) * 20;
+                const lt = (t - 0.9) / 0.1; x = (lt - 0.5) * w * 0.4; y = h * 0.4 + Math.sin(lt * 20) * 20;
                 color = (Math.random() > 0.5) ? '#FF0000' : '#0000FF';
             }
             return {x, y, color};
@@ -541,11 +644,16 @@
             const T = centerTime;
 
             const angle = T * p.s + particle.tParam * 5; 
-            const px = p.r * Math.cos(angle);
-            const py = p.r * Math.sin(angle);
+            
+            // Adjust radius and sizes by globalScale
+            const rAdj = p.r * globalScale;
+            const sizeAdj = p.size * globalScale;
+            
+            const px = rAdj * Math.cos(angle);
+            const py = rAdj * Math.sin(angle);
 
             if (planetIdx === 0) {
-                const r = Math.random() * p.size;
+                const r = Math.random() * sizeAdj;
                 const theta = Math.random() * PI2;
                 x = px + r * Math.cos(theta);
                 y = py + r * Math.sin(theta);
@@ -554,7 +662,9 @@
                 const featureSeed = (particle.tParamLinear * totalPlanets) % 1; 
 
                 if (p.ring && featureSeed > 0.7) {
-                    const ringR = p.ring.min + Math.random() * (p.ring.max - p.ring.min);
+                    const rMin = p.ring.min * globalScale;
+                    const rMax = p.ring.max * globalScale;
+                    const ringR = rMin + Math.random() * (rMax - rMin);
                     const ringAngle = particle.tParam * 20; 
                     x = px + ringR * Math.cos(ringAngle);
                     y = py + (ringR * 0.4) * Math.sin(ringAngle); 
@@ -563,11 +673,12 @@
                     const mIdx = Math.floor(featureSeed * 10) % p.moons.length;
                     const m = p.moons[mIdx];
                     const mAngle = T * m.s + particle.tParam * 10;
-                    x = px + m.r * Math.cos(mAngle);
-                    y = py + m.r * Math.sin(mAngle);
+                    const mR = m.r * globalScale;
+                    x = px + mR * Math.cos(mAngle);
+                    y = py + mR * Math.sin(mAngle);
                     color = m.c;
                 } else {
-                    const r = Math.random() * (p.size * 0.8);
+                    const r = Math.random() * (sizeAdj * 0.8);
                     const theta = Math.random() * PI2;
                     x = px + r * Math.cos(theta);
                     y = py + r * Math.sin(theta);
@@ -594,7 +705,7 @@
                 this.vx = (Math.random() - 0.5) * BASE_SPEED;
                 this.vy = (Math.random() - 0.5) * BASE_SPEED;
                 this.isColorA = Math.random() > 0.5;
-                this.baseSize = Math.random() * 2 + 1;
+                this.baseSize = (Math.random() * 2 + 1) * (isMobile ? 1.5 : 1.0); // Bigger on mobile
                 this.size = this.baseSize;
                 this.z = 0;
                 this.customColor = null;
@@ -687,16 +798,20 @@
 
             applyHandEffect(tx, ty, state) {
                 this.customColor = null; 
+                
+                // Scale forces for mobile
+                const forceMult = isMobile ? 1.5 : 1.0; 
 
                 if (state === 'GRAVITY') {
                     const dx = this.x - tx;
                     const dy = this.y - ty;
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     const angle = Math.atan2(dy, dx);
-                    if (dist < 400 && dist > 20) {
-                        const force = (400 - dist) / 350;
-                        this.vx -= Math.cos(angle) * force * 2; 
-                        this.vy -= Math.sin(angle) * force * 2;
+                    const range = 400 * globalScale;
+                    if (dist < range && dist > 20) {
+                        const force = (range - dist) / (350 * globalScale);
+                        this.vx -= Math.cos(angle) * force * 2 * forceMult; 
+                        this.vy -= Math.sin(angle) * force * 2 * forceMult;
                     }
                     return false;
 
@@ -705,10 +820,11 @@
                     const dy = this.y - ty;
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     const angle = Math.atan2(dy, dx);
-                    if (dist < 500) {
-                        const force = (600 - dist) / 10;
-                        this.vx += Math.cos(angle) * force * 0.8;
-                        this.vy += Math.sin(angle) * force * 0.8;
+                    const range = 500 * globalScale;
+                    if (dist < range) {
+                        const force = ((range + 100) - dist) / 10;
+                        this.vx += Math.cos(angle) * force * 0.8 * forceMult;
+                        this.vy += Math.sin(angle) * force * 0.8 * forceMult;
                     }
                     return false;
 
@@ -718,10 +834,10 @@
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     const angle = Math.atan2(dy, dx);
                     if (dist > 30) {
-                        const force = 1.8;
+                        const force = 1.8 * forceMult;
                         this.vx -= Math.cos(angle) * force; 
                         this.vy -= Math.sin(angle) * force;
-                        const rotForce = 0.9;
+                        const rotForce = 0.9 * forceMult;
                         this.vx += Math.cos(angle + Math.PI/2) * rotForce;
                         this.vy += Math.sin(angle + Math.PI/2) * rotForce;
                     }
@@ -753,7 +869,18 @@
 
                 } else if (state === 'THUMBS_UP') {
                     const scale = 12;
-                    const pt = getHandShapePoint(this.tParamLinear, scale);
+                    const pt = getThumbsUpPoint(this.tParamLinear, scale);
+                    const destX = tx + pt.x;
+                    const destY = ty + pt.y;
+                    const dx = destX - this.x;
+                    const dy = destY - this.y;
+                    this.vx += dx * 0.06;
+                    this.vy += dy * 0.06;
+                    return true;
+
+                } else if (state === 'RUDE_GESTURE') {
+                    const scale = 12;
+                    const pt = getRudeGesturePoint(this.tParamLinear, scale);
                     const destX = tx + pt.x;
                     const destY = ty + pt.y;
                     const dx = destX - this.x;
@@ -957,14 +1084,50 @@
                     this.vy += Math.sin(angle) * force;
                     this.tParam += 0.01;
 
+                } else if (interactionMode === 'TWO_SPIDER_FAMILY') {
+                    triggerAchievement('spiderfamily');
+                    const cx = width / 2;
+                    const cy = height / 2;
+                    
+                    // Define 4 quadrant offsets relative to center
+                    const offsetScale = 150 * globalScale;
+                    const offsets = [
+                        {x: -offsetScale, y: -offsetScale}, 
+                        {x: offsetScale, y: -offsetScale},
+                        {x: -offsetScale, y: offsetScale},  
+                        {x: offsetScale, y: offsetScale}
+                    ];
+                    
+                    // Assign each particle to one of the 4 spiders based on its linear tParam
+                    const groupIdx = Math.floor(this.tParamLinear * 4);
+                    const offset = offsets[groupIdx];
+                    
+                    // Normalize tParam for drawing a single spider (0..1)
+                    const localT = (this.tParamLinear * 4) % 1; 
+                    
+                    const scale = 8; 
+                    // Reuse existing spider geometry logic
+                    const pt = getSpiderPoint(localT, scale); 
+                    
+                    const tx = cx + offset.x + pt.x;
+                    const ty = cy + offset.y + pt.y;
+                    
+                    const dx = tx - this.x;
+                    const dy = ty - this.y;
+                    
+                    this.vx += dx * 0.08;
+                    this.vy += dy * 0.08;
+                    
+                    this.customColor = '#FF0000'; // Spiderman Red
+
                 } else if (interactionMode === 'TWO_INDEPENDENT') {
                     if ((hand1State === 'REPULSOR' && hand2State === 'GRAVITY') || 
                         (hand1State === 'GRAVITY' && hand2State === 'REPULSOR')) {
                         triggerAchievement('balance');
                     }
 
-                    const isH1Shape = ['PEACE','SPIDER','THUMBS_UP','OK_SIGN'].includes(hand1State);
-                    const isH2Shape = ['PEACE','SPIDER','THUMBS_UP','OK_SIGN'].includes(hand2State);
+                    const isH1Shape = ['PEACE','SPIDER','THUMBS_UP','OK_SIGN','RUDE_GESTURE'].includes(hand1State);
+                    const isH2Shape = ['PEACE','SPIDER','THUMBS_UP','OK_SIGN','RUDE_GESTURE'].includes(hand2State);
                     const isSplitMode = isH1Shape || isH2Shape;
 
                     if (isSplitMode) {
@@ -984,7 +1147,9 @@
 
                 if (!in3DMode) this.z = 0;
 
-                if (this.x < -100 || this.x > width + 100 || this.y < -100 || this.y > height + 100) {
+                // Adjust bounds for mobile to prevent premature reset
+                const bounds = 100 * globalScale;
+                if (this.x < -bounds || this.x > width + bounds || this.y < -bounds || this.y > height + bounds) {
                     this.init(); 
                 }
             }
@@ -1019,7 +1184,7 @@
         }
 
         const stars = [];
-        const STAR_COUNT = 100;
+        const STAR_COUNT = isMobile ? 50 : 100; // Fewer stars on mobile
         
         function initStars() {
             stars.length = 0;
@@ -1060,6 +1225,11 @@
             height = window.innerHeight;
             canvasElement.width = width;
             canvasElement.height = height;
+            
+            // "Zoom out" effect on mobile: larger space relative to particle speed
+            // and scaling shapes down slightly so more fits.
+            // Using a base dimension of 1000px as reference.
+            globalScale = Math.min(width, height) / (isMobile ? 800 : 1000);
         }
 
         function initParticles() {
@@ -1071,6 +1241,12 @@
         }
 
         function updateIdleState() {
+            // If touching, don't run idle animations
+            if (isTouchActive) {
+                idleController.lastActionTime = Date.now();
+                return;
+            }
+
             if (interactionMode !== 'IDLE' && interactionMode !== 'PLAYING_ANIMATION') {
                 idleController.state = 'WAITING';
                 idleController.lastActionTime = Date.now();
@@ -1182,6 +1358,78 @@
             }
         }
 
+        // --- Touch Handling ---
+        function handleTouchStart(e) {
+            e.preventDefault();
+            isTouchActive = true;
+            idleController.lastActionTime = Date.now();
+            
+            const now = Date.now();
+            if (e.touches.length === 1) {
+                if (now - lastTapTime < 300) {
+                    // Double Tap detected
+                    if (currentTouchMode === 'GRAVITY') currentTouchMode = 'REPULSOR';
+                    else if (currentTouchMode === 'REPULSOR') currentTouchMode = 'PEACE';
+                    else currentTouchMode = 'GRAVITY';
+                    
+                    // Visual feedback
+                    handStatus.innerText = "MODE SWITCH: " + currentTouchMode;
+                    handStatus.style.color = "#00FFEA";
+                    setTimeout(() => handStatus.style.color = "#555", 1000);
+                }
+                lastTapTime = now;
+            }
+
+            updateTouchState(e);
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (isTouchActive) {
+                idleController.lastActionTime = Date.now();
+                updateTouchState(e);
+            }
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            if (e.touches.length === 0) {
+                isTouchActive = false;
+                setTimeout(() => {
+                    if (!isTouchActive && interactionMode === 'ONE_SIMPLE') {
+                        interactionMode = 'IDLE';
+                    }
+                }, 1000);
+            } else {
+                updateTouchState(e);
+            }
+        }
+
+        function updateTouchState(e) {
+            interactionMode = 'ONE_SIMPLE';
+            
+            // Calculate Centroid
+            let tx = 0, ty = 0;
+            const count = e.touches.length;
+            for(let i=0; i<count; i++) {
+                tx += e.touches[i].clientX;
+                ty += e.touches[i].clientY;
+            }
+            targetPosition.x = tx / count;
+            targetPosition.y = ty / count;
+
+            // Logic based on finger count
+            if (count === 1) {
+                hand1State = currentTouchMode;
+            } else if (count === 2) {
+                hand1State = 'OK_SIGN'; // Align/Solar
+                handStatus.innerText = "MULTI-TOUCH: ALIGNMENT";
+            } else if (count >= 3) {
+                hand1State = 'SINGULARITY';
+                handStatus.innerText = "MULTI-TOUCH: SINGULARITY";
+            }
+        }
+
         function animate() {
             const trailAlpha = interactionMode === 'TWO_WORMHOLE' ? 0.1 : 0.3; 
             canvasCtx.fillStyle = `rgba(5, 5, 5, ${trailAlpha})`;
@@ -1213,12 +1461,16 @@
             }
             else if (interactionMode === 'TWO_BLACK_HOLE') {
                 handStatus.innerText = ">> SINGULARITY FORMED <<";
+            }
+            else if (interactionMode === 'TWO_SPIDER_FAMILY') {
+                handStatus.innerText = ">> SPIDER FAMILY ASSEMBLED <<";
             } else if (interactionMode !== 'IDLE') {
                 canvasCtx.lineWidth = 3;
                 
                 const drawCursor = (x, y, label, state) => {
                     canvasCtx.beginPath();
-                    canvasCtx.arc(x, y, 20, 0, PI2);
+                    // Larger cursor for touch
+                    canvasCtx.arc(x, y, isTouchActive ? 40 : 20, 0, PI2);
                     let color = '#00FFEA';
                     if (state === 'REPULSOR') color = '#FF0000';
                     else if (state === 'SPIDER') color = '#FF3333';
@@ -1230,13 +1482,19 @@
                     else if (state === 'OK_SIGN') color = '#FFAA00';
                     else if (state === 'SW_CONFIRM') color = '#AA00FF';
                     else if (state === 'ALIGNING') color = '#FFCC00';
+                    else if (state === 'RUDE_GESTURE') color = '#FF0055';
+                    else if (state === 'RUDE') color = '#FF0055';
+                    else if (state === 'THUMBS_UP_LOADING') color = '#00FFAA';
                     
                     canvasCtx.strokeStyle = color;
                     canvasCtx.stroke();
                     
-                    canvasCtx.fillStyle = "white";
-                    canvasCtx.font = "12px monospace";
-                    canvasCtx.fillText(label, x + 25, y + 5);
+                    // Don't draw text under finger if touch active
+                    if (!isTouchActive) {
+                        canvasCtx.fillStyle = "white";
+                        canvasCtx.font = "12px monospace";
+                        canvasCtx.fillText(label, x + 25, y + 5);
+                    }
                 };
 
                 if (interactionMode === 'TWO_WORMHOLE') {
@@ -1268,12 +1526,24 @@
                                  canvasCtx.beginPath();
                                  canvasCtx.strokeStyle = `rgba(255, 255, 255, 0.15)`;
                                  canvasCtx.lineWidth = 1;
-                                 canvasCtx.arc(targetPosition.x, targetPosition.y, p.r, 0, PI2);
+                                 // Scale orbit rings
+                                 canvasCtx.arc(targetPosition.x, targetPosition.y, p.r * globalScale, 0, PI2);
                                  canvasCtx.stroke();
                              }
                           });
                       } else if (hand1State === 'SW_CONFIRM') {
                           handStatus.innerText = "AWAITING CONFIRMATION... (HOLD 2s)";
+                      } else if (hand1State === 'RUDE') {
+                          // Safe access to timer for display
+                          const timer = okTimer1 > 0 ? okTimer1 : (rudeTimer1 > 0 ? rudeTimer1 : Date.now());
+                          handStatus.innerText = "HOLDING... " + Math.max(0, Math.ceil((3000 - (Date.now() - timer))/1000));
+                      } else if (hand1State === 'THUMBS_UP_LOADING') {
+                          const timer = thumbsUpTimer1 > 0 ? thumbsUpTimer1 : Date.now();
+                          handStatus.innerText = "CHARGING PIXEL HAND... " + Math.max(0, Math.ceil((2000 - (Date.now() - timer))/1000));
+                      }
+                      
+                      if (isTouchActive && !['OK_SIGN', 'SINGULARITY'].includes(hand1State)) {
+                          handStatus.innerText = "TOUCH: " + hand1State + " (DOUBLE TAP TO SWITCH)";
                       }
                 } else {
                     let label = interactionMode.replace('TWO_', '');
@@ -1355,6 +1625,15 @@
             return isPinching && middleUp && ringUp && pinkyUp;
         }
 
+        function checkMiddleFinger(landmarks) {
+            const indexUp = isFingerExtended(landmarks, 8, 6);
+            const middleUp = isFingerExtended(landmarks, 12, 10);
+            const ringUp = isFingerExtended(landmarks, 16, 14);
+            const pinkyUp = isFingerExtended(landmarks, 20, 18);
+            // Thumb isn't strictly required to be down for the "gesture", but usually is.
+            return middleUp && !indexUp && !ringUp && !pinkyUp;
+        }
+
         function getHandState(landmarks, handIdx) {
             const indexUp = isFingerExtended(landmarks, 8, 6);
             const middleUp = isFingerExtended(landmarks, 12, 10);
@@ -1376,13 +1655,49 @@
                 return 'SW_CONFIRM';
             } 
 
-            if (checkThumbsUp(landmarks)) return 'THUMBS_UP';
+            if (checkThumbsUp(landmarks)) {
+                 if (handIdx === 1) {
+                     if (thumbsUpTimer1 === 0) thumbsUpTimer1 = Date.now();
+                     else if (Date.now() - thumbsUpTimer1 > 2000) {
+                         return 'THUMBS_UP';
+                     }
+                 } else {
+                     if (thumbsUpTimer2 === 0) thumbsUpTimer2 = Date.now();
+                     else if (Date.now() - thumbsUpTimer2 > 2000) {
+                         return 'THUMBS_UP';
+                     }
+                 }
+                 return 'THUMBS_UP_LOADING';
+            } else {
+                 if (handIdx === 1) thumbsUpTimer1 = 0;
+                 else thumbsUpTimer2 = 0;
+            }
             
             if (checkOKSign(landmarks)) {
                 return 'ALIGNING'; 
             } else {
                 if (handIdx === 1) okTimer1 = 0;
                 else okTimer2 = 0;
+            }
+
+            if (checkMiddleFinger(landmarks)) {
+                 if (handIdx === 1) {
+                     if (rudeTimer1 === 0) rudeTimer1 = Date.now();
+                     else if (Date.now() - rudeTimer1 > 3000) {
+                         triggerAchievement('rude');
+                         return 'RUDE_GESTURE';
+                     }
+                 } else {
+                     if (rudeTimer2 === 0) rudeTimer2 = Date.now();
+                     else if (Date.now() - rudeTimer2 > 3000) {
+                         triggerAchievement('rude');
+                         return 'RUDE_GESTURE';
+                     }
+                 }
+                 return 'RUDE';
+            } else {
+                 if (handIdx === 1) rudeTimer1 = 0;
+                 else rudeTimer2 = 0;
             }
 
             if (checkCShape(landmarks)) return 'SINGULARITY';
@@ -1418,15 +1733,18 @@
                 }
             }
 
+            // Priority: Touch > Hands. If touching, ignore hands updates.
+            if (isTouchActive) return;
+
             const numHands = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
             
             if (numHands > 0) {
                 idleController.lastActionTime = Date.now();
                 // Reset to waiting if interrupted
                 if (idleController.state === 'PLAYING') {
-                     idleController.state = 'WAITING';
-                     idleController.currentAnim = null;
-                     interactionMode = 'IDLE'; // Ensure we reset mode if interrupted by hand
+                      idleController.state = 'WAITING';
+                      idleController.currentAnim = null;
+                      interactionMode = 'IDLE'; // Ensure we reset mode if interrupted by hand
                 }
             }
 
@@ -1517,6 +1835,22 @@
                         targetPosition.x = x1; targetPosition.y = y1;
                         targetPosition2.x = x2; targetPosition2.y = y2;
                     }
+
+                    // Check for Spider Family
+                    if (hand1State === 'SPIDER' && hand2State === 'SPIDER') {
+                         if (spiderFamilyTimer === 0) spiderFamilyTimer = Date.now();
+                         else if (Date.now() - spiderFamilyTimer > 3000) {
+                             interactionMode = 'TWO_SPIDER_FAMILY';
+                             spiderFamilyTimer = 0;
+                         } else {
+                             handStatus.innerText = "SUMMONING SPIDER FAMILY... (" + Math.ceil((3000 - (Date.now() - spiderFamilyTimer))/1000) + ")";
+                         }
+                    } else {
+                        spiderFamilyTimer = 0;
+                        if (interactionMode === 'TWO_SPIDER_FAMILY' && (hand1State !== 'SPIDER' || hand2State !== 'SPIDER')) {
+                             interactionMode = 'TWO_INDEPENDENT'; 
+                        }
+                    }
                 }
             } else if (numHands === 1) {
                 const h1Raw = results.multiHandLandmarks[0];
@@ -1539,6 +1873,9 @@
                 else if (hand1State === 'OK_SIGN') handStatus.innerText = "SINGLE: SOLAR SYSTEM";
                 else if (hand1State === 'ALIGNING') handStatus.innerText = "ALIGNING PLANETS...";
                 else if (hand1State === 'SW_CONFIRM') handStatus.innerText = "HOLD FOR STAR WARS";
+                else if (hand1State === 'RUDE') handStatus.innerText = "HOLD IT...";
+                else if (hand1State === 'RUDE_GESTURE') handStatus.innerText = "REALLY?! THAT'S RUDE!";
+                else if (hand1State === 'THUMBS_UP_LOADING') handStatus.innerText = "CHARGING...";
                 else handStatus.innerText = "SINGLE: GRAVITY";
             
             } else {
@@ -1553,9 +1890,10 @@
             return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
         }});
 
+        // Mobile optimization: Use lighter model config if mobile
         hands.setOptions({
             maxNumHands: 2,
-            modelComplexity: 1,
+            modelComplexity: isMobile ? 0 : 1, // Use Lite model on mobile
             minDetectionConfidence: 0.6,
             minTrackingConfidence: 0.6
         });
@@ -1567,6 +1905,11 @@
             initStars();
             initParticles();
             window.addEventListener('resize', resize);
+            
+            // Add Touch Listeners
+            canvasElement.addEventListener('touchstart', handleTouchStart, {passive: false});
+            canvasElement.addEventListener('touchmove', handleTouchMove, {passive: false});
+            canvasElement.addEventListener('touchend', handleTouchEnd, {passive: false});
 
             // Handle Splash Screen
             const splash = document.getElementById('splash-screen');
@@ -1579,21 +1922,33 @@
                     loadingBar.style.width = `${progress}%`;
                 }, 50);
             }, 2500); 
+            
+            // Mobile Optimization: Lower resolution for MediaPipe processing
+            const camWidth = isMobile ? 320 : 640;
+            const camHeight = isMobile ? 240 : 480;
+
+            let frameCounter = 0;
 
             const camera = new Camera(videoElement, {
                 onFrame: async () => {
+                    if (isMobile) {
+                        frameCounter++;
+                        // Process only every 3rd frame on mobile to free up CPU for rendering
+                        if (frameCounter % 3 !== 0) return; 
+                    }
                     await hands.send({image: videoElement});
                 },
-                width: 640,
-                height: 480
+                width: camWidth,
+                height: camHeight
             });
 
             instructionText.style.display = 'block';
             camera.start().then(() => {
                 introText.innerText = "SEARCHING FOR HAND PATTERN...";
             }).catch(err => {
-                introText.innerText = "CAMERA ERROR";
-                introText.style.color = "red";
+                introText.innerText = "CAMERA ERROR / TOUCH ENABLED";
+                introText.style.color = "#FF0055";
+                // Even if camera fails, simulation runs and touch works
             });
 
             animate();
