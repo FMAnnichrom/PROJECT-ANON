@@ -282,7 +282,7 @@
                 <div style="color: #00ffea; font-size: clamp(1.5rem, 5vw, 2.5rem); letter-spacing: 5px; font-weight: bold; margin-bottom: 15px;">
                     NEURAL PIXEL SPACE
                 </div>
-                <div style="color: white; font-size: clamp(0.8rem, 3vw, 1.2rem); letter-spacing: 3px; font-family: 'Courier New', Courier, monospace;">
+                <div id="mobile-indicator" style="color: white; font-size: clamp(0.8rem, 3vw, 1.2rem); letter-spacing: 3px; font-family: 'Courier New', Courier, monospace;">
                     MOBILE OPTIMIZED
                 </div>
             </div>
@@ -332,6 +332,12 @@
         // --- Configuration ---
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
+        // Hide mobile indicator if on desktop
+        if (!isMobile) {
+            const ind = document.getElementById('mobile-indicator');
+            if (ind) ind.style.display = 'none';
+        }
+
         // Optimize defaults for mobile - Reduced further for performance
         let PARTICLE_COUNT = isMobile ? 600 : 1200; 
         
@@ -699,7 +705,12 @@
             const lt = (t * text.length) % 1;
             const char = text[charIdx];
             
-            const fontSize = width * 0.04 * (isMobile ? 1.5 : 1.0);
+            // Dynamic font sizing to prevent cutoff
+            // Use the smaller of: standard responsive size OR size constrained by text length
+            const standardSize = width * 0.04;
+            const constrainedSize = (width * 0.9) / (text.length * 1.2); // Ensure text fits in 90% of width
+            const fontSize = Math.min(standardSize, constrainedSize);
+            
             const spacing = fontSize * 1.2;
             const startX = (width - (text.length * spacing)) / 2;
             const cy = height / 2;
