@@ -116,27 +116,44 @@
             position: absolute;
             top: 20px;
             right: 20px;
-            width: min(200px, 40vw); /* Prevent overlap on small screens */
-            padding: 15px;
-            background: rgba(0, 20, 40, 0.8);
+            width: min(220px, 45vw);
+            padding: 12px;
+            background: rgba(0, 20, 40, 0.85);
             border: 1px solid #00ffea;
             border-radius: 8px;
             z-index: 5;
             color: #00ffea;
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            backdrop-filter: blur(4px);
-            pointer-events: auto; /* Ensure clickable */
+            gap: 12px;
+            backdrop-filter: blur(8px);
+            pointer-events: auto;
+        }
+
+        @media (max-width: 600px) {
+            #controls {
+                top: 10px;
+                right: 10px;
+                padding: 8px;
+                width: 140px;
+                gap: 8px;
+            }
+            .control-group label {
+                font-size: 0.6rem;
+            }
+            button#rgb-btn {
+                padding: 6px 4px !important;
+                font-size: 0.65rem !important;
+            }
         }
 
         /* Landscape adjustment for controls */
         @media (max-height: 500px) and (orientation: landscape) {
             #controls {
-                top: 10px;
-                right: 10px;
-                padding: 10px;
-                transform: scale(0.8);
+                top: 5px;
+                right: 5px;
+                padding: 6px;
+                transform: scale(0.85);
                 transform-origin: top right;
             }
         }
@@ -144,28 +161,53 @@
         .control-group {
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 4px;
+        }
+
+        .color-row {
+            display: flex;
+            gap: 8px;
+            justify-content: space-between;
+        }
+
+        .color-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            flex: 1;
         }
 
         label {
             font-size: 0.7rem;
             font-weight: bold;
+            text-transform: uppercase;
         }
 
         input[type="range"] {
             width: 100%;
             accent-color: #00ffea;
-            height: 20px; /* Taller touch target */
+            height: 15px;
+            cursor: pointer;
+        }
+
+        input[type="color"] {
+            width: 100%;
+            height: 25px;
+            border: 1px solid #444;
+            background: none;
+            padding: 0;
+            cursor: pointer;
         }
 
         button#rgb-btn {
             background: transparent;
             border: 1px solid #ff0055;
             color: #ff0055;
-            padding: 12px 8px; /* Larger touch target */
+            padding: 10px 8px;
             font-family: inherit;
             font-weight: bold;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             cursor: pointer;
             transition: all 0.2s;
             text-shadow: 0 0 5px #ff0055;
@@ -240,7 +282,7 @@
                 <div style="color: #00ffea; font-size: clamp(1.5rem, 5vw, 2.5rem); letter-spacing: 5px; font-weight: bold; margin-bottom: 15px;">
                     NEURAL PIXEL SPACE
                 </div>
-                <div style="color: white; font-size: clamp(0.8rem, 3vw, 1.2rem); letter-spacing: 3px; font-family: 'Courier New', Courier, monospace;">
+                <div id="mobile-indicator" style="color: white; font-size: clamp(0.8rem, 3vw, 1.2rem); letter-spacing: 3px; font-family: 'Courier New', Courier, monospace;">
                     MOBILE OPTIMIZED
                 </div>
             </div>
@@ -256,7 +298,21 @@
                 <label>DENSITY: <span id="density-val">600</span></label>
                 <input type="range" id="particle-slider" min="200" max="3000" step="100" value="600">
             </div>
-            <button id="rgb-btn">RGB OVERDRIVE</button>
+
+            <div class="control-group">
+                <div class="color-row">
+                    <div class="color-item">
+                        <label>CLR A</label>
+                        <input type="color" id="color-a-picker" value="#00ffea">
+                    </div>
+                    <div class="color-item">
+                        <label>CLR B</label>
+                        <input type="color" id="color-b-picker" value="#ff0055">
+                    </div>
+                </div>
+            </div>
+
+            <button id="rgb-btn">RGB MODE</button>
         </div>
 
         <div id="ui-layer">
@@ -276,11 +332,17 @@
         // --- Configuration ---
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
+        // Hide mobile indicator if on desktop
+        if (!isMobile) {
+            const ind = document.getElementById('mobile-indicator');
+            if (ind) ind.style.display = 'none';
+        }
+
         // Optimize defaults for mobile - Reduced further for performance
         let PARTICLE_COUNT = isMobile ? 600 : 1200; 
         
-        const COLOR_A = {r: 0, g: 255, b: 234}; // Cyan #00ffea
-        const COLOR_B = {r: 255, g: 0, b: 85};  // Magenta #ff0055
+        let COLOR_A = {r: 0, g: 255, b: 234}; // Cyan #00ffea
+        let COLOR_B = {r: 255, g: 0, b: 85};  // Magenta #ff0055
         const SPACE_DRAG = 0.94;
         const BASE_SPEED = 0.5;
         const PI2 = Math.PI * 2;
@@ -301,6 +363,8 @@
         const achievementPopup = document.getElementById('achievement-popup');
         const achText = document.getElementById('ach-text');
         const splashScreen = document.getElementById('splash-screen');
+        const colorAPicker = document.getElementById('color-a-picker');
+        const colorBPicker = document.getElementById('color-b-picker');
 
         let particles = [];
         let width, height;
@@ -336,7 +400,7 @@
         const idleController = {
             state: 'WAITING', // WAITING, PLAYING
             lastActionTime: Date.now(),
-            waitDuration: 10000,
+            waitDuration: 8000,
             currentAnim: null,
             animStartTime: 0,
             animIndex: 0, 
@@ -346,7 +410,8 @@
             solarFlyby: { x: 0, y: 0, vx: 0, vy: 0, active: false },
             cometDirection: { x: 1, y: 1 },
             
-            animations: ['BLACK_HOLE', 'COMET_SHOWER', 'QUESTION_MARK', 'SOLAR_FLYBY']
+            // Added BIG_EYE here
+            animations: ['DNA_HELIX', 'BLACK_HOLE', 'COMET_SHOWER', 'QUESTION_MARK', 'BIG_EYE', 'SOLAR_FLYBY', 'CREDITS']
         };
         
         // Achievements
@@ -376,6 +441,16 @@
         let sequenceActive = false;
         let sequenceStartTime = 0;
 
+        // --- Helpers ---
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+
         // --- Controls & UI ---
         particleSlider.addEventListener('input', (e) => {
             PARTICLE_COUNT = parseInt(e.target.value);
@@ -383,9 +458,58 @@
             initParticles(); 
         });
 
-        rgbBtn.addEventListener('click', () => {
+        // RGB Button Logic (Short Press: Toggle, Long Press: Credits)
+        let rgbTimer = null;
+        let longPressTriggered = false;
+
+        function handleRgbDown(e) {
+            longPressTriggered = false;
+            rgbTimer = setTimeout(() => {
+                longPressTriggered = true;
+                // Trigger Credits Animation
+                idleController.currentAnim = 'CREDITS';
+                idleController.animStartTime = Date.now();
+                idleController.state = 'PLAYING';
+                interactionMode = 'PLAYING_ANIMATION';
+                handStatus.innerText = "CREDITS SEQUENCE";
+                
+                // Visual Feedback on button
+                rgbBtn.style.backgroundColor = "#fff";
+                setTimeout(() => rgbBtn.style.backgroundColor = "", 200);
+            }, 1000); // 1 second hold
+        }
+
+        function handleRgbUp(e) {
+            if (rgbTimer) {
+                clearTimeout(rgbTimer);
+                rgbTimer = null;
+            }
+        }
+
+        function handleRgbClick(e) {
+            if (longPressTriggered) return; // Skip toggle if long press triggered
             isRGBMode = !isRGBMode;
             rgbBtn.classList.toggle('active');
+        }
+
+        // Add listeners for both mouse and touch to ensure consistent behavior
+        rgbBtn.addEventListener('mousedown', handleRgbDown);
+        rgbBtn.addEventListener('touchstart', handleRgbDown, {passive: true});
+        
+        rgbBtn.addEventListener('mouseup', handleRgbUp);
+        rgbBtn.addEventListener('touchend', handleRgbUp);
+        rgbBtn.addEventListener('mouseleave', handleRgbUp);
+        
+        rgbBtn.addEventListener('click', handleRgbClick);
+
+        colorAPicker.addEventListener('input', (e) => {
+            const rgb = hexToRgb(e.target.value);
+            if (rgb) COLOR_A = rgb;
+        });
+
+        colorBPicker.addEventListener('input', (e) => {
+            const rgb = hexToRgb(e.target.value);
+            if (rgb) COLOR_B = rgb;
         });
 
         function triggerAchievement(type) {
@@ -423,6 +547,123 @@
         ];
 
         // --- Geometric Functions ---
+        
+        function getDNAPoint(t, width, height, time) {
+            // Split t into two strands: 0-0.5 is strand A, 0.5-1.0 is strand B
+            const strand = t < 0.5 ? 0 : 1;
+            // Normalize t for the strand (0 to 1)
+            const localT = (t * 2) % 1; 
+            
+            // Calculate Helix Logic
+            // Make it vertical
+            const rowY = height * 0.1 + (localT * height * 0.8);
+            
+            // Rotation angle based on Y position + Time
+            const angle = (localT * Math.PI * 6) + time; // 3 Full twists
+            const radius = 120 * globalScale;
+            
+            // Offset second strand by PI
+            const effectiveAngle = angle + (strand * Math.PI);
+            
+            const x = (width / 2) + Math.cos(effectiveAngle) * radius;
+            const z = Math.sin(effectiveAngle) * 40; // Depth effect
+            
+            let color;
+            if (strand === 0) color = `rgb(${COLOR_A.r},${COLOR_A.g},${COLOR_A.b})`; // Color A
+            else color = `rgb(${COLOR_B.r},${COLOR_B.g},${COLOR_B.b})`; // Color B
+            
+            return { x, y: rowY, z, color };
+        }
+
+        // NEW BIG EYE ANIMATION LOGIC
+        function getBigEyePoint(t, width, height, elapsed) {
+            const cx = width / 2;
+            const cy = height / 2;
+            const scale = 220 * globalScale; 
+            
+            // Gaze Logic: 
+            // 0-3s: Center to Left
+            // 3-7s: Left to Right
+            // 7-9s: Right to Center
+            // 9s+: Center + Red Contact
+            
+            let gazeX = 0;
+            let isRed = false;
+            const maxGaze = scale * 0.6;
+            
+            if (elapsed < 3000) {
+               const p = elapsed / 3000;
+               gazeX = -maxGaze * p;
+            } else if (elapsed < 7000) {
+               const p = (elapsed - 3000) / 4000;
+               gazeX = -maxGaze + (maxGaze * 2 * p);
+            } else if (elapsed < 9000) {
+               const p = (elapsed - 7000) / 2000;
+               gazeX = maxGaze - (maxGaze * p);
+            } else {
+               gazeX = 0;
+               isRed = true;
+            }
+            
+            // Jitter gaze slightly for realism
+            if(elapsed < 9000) gazeX += (Math.random()-0.5)*5;
+
+            let x, y, color;
+            
+            // T mapping
+            // 0.0 - 0.45: Eyelids (Color A)
+            // 0.45 - 0.85: Iris (Color B -> Red)
+            // 0.85 - 1.0: Pupil (Black)
+            
+            if (t < 0.45) {
+                // Eyelids (Color A)
+                const lt = t / 0.45; 
+                let angle;
+                if (lt < 0.5) {
+                    const ltt = lt / 0.5; 
+                    angle = Math.PI + (ltt * 2 * Math.PI); // Top arc
+                } else {
+                    const ltt = (lt - 0.5) / 0.5; 
+                    angle = ltt * 2 * Math.PI; // Bottom arc
+                }
+                
+                // Elliptical shape for eye
+                x = cx + Math.cos(angle) * scale;
+                y = cy + Math.sin(angle) * (scale * 0.6); 
+                
+                if (typeof COLOR_A !== 'undefined') color = `rgb(${COLOR_A.r},${COLOR_A.g},${COLOR_A.b})`;
+                else color = '#00ffea';
+
+            } else if (t < 0.85) {
+                // Iris
+                const rMax = scale * 0.4;
+                const r = rMax * Math.sqrt(Math.random());
+                const theta = Math.random() * PI2;
+                
+                x = cx + gazeX + r * Math.cos(theta);
+                y = cy + r * Math.sin(theta);
+                
+                if (isRed) {
+                    color = '#FF0000';
+                } else {
+                    if (typeof COLOR_B !== 'undefined') color = `rgb(${COLOR_B.r},${COLOR_B.g},${COLOR_B.b})`;
+                    else color = '#ff0055';
+                }
+                
+            } else {
+                // Pupil (Black)
+                const rMax = scale * 0.15;
+                const r = rMax * Math.sqrt(Math.random());
+                const theta = Math.random() * PI2;
+                
+                x = cx + gazeX + r * Math.cos(theta);
+                y = cy + r * Math.sin(theta);
+                color = '#000000';
+            }
+            
+            return {x, y, color};
+        }
+
         function getHeartPoint(t, scale) {
             const adjustedScale = scale * globalScale;
             const x = 16 * Math.pow(Math.sin(t), 3);
@@ -456,6 +697,86 @@
                 y = cy + s * 25;
             }
             return {x, y};
+        }
+
+        function getCreditsPoint(t, width, height) {
+            const text = "MADE BY DEEPANSHU";
+            const charIdx = Math.floor(t * text.length);
+            const lt = (t * text.length) % 1;
+            const char = text[charIdx];
+            
+            // Dynamic font sizing to prevent cutoff
+            // Use the smaller of: standard responsive size OR size constrained by text length
+            const standardSize = width * 0.04;
+            const constrainedSize = (width * 0.9) / (text.length * 1.2); // Ensure text fits in 90% of width
+            const fontSize = Math.min(standardSize, constrainedSize);
+            
+            const spacing = fontSize * 1.2;
+            const startX = (width - (text.length * spacing)) / 2;
+            const cy = height / 2;
+            const cx = startX + charIdx * spacing + fontSize / 2;
+            
+            let dx = 0, dy = 0;
+            const s = fontSize / 2;
+
+            switch(char) {
+                case 'M':
+                    if(lt<0.25) { dx=-s; dy=s-lt/0.25*2*s; }
+                    else if(lt<0.5) { dx=-s+(lt-0.25)/0.25*s; dy=-s+(lt-0.25)/0.25*s; }
+                    else if(lt<0.75) { dx=(lt-0.5)/0.25*s; dy=(lt-0.5)/0.25*-s; }
+                    else { dx=s; dy=-s+(lt-0.75)/0.25*2*s; }
+                    break;
+                case 'A':
+                    if(lt<0.4) { dx=-s+lt/0.4*s; dy=s-lt/0.4*2*s; }
+                    else if(lt<0.8) { dx=(lt-0.4)/0.4*s; dy=-s+(lt-0.4)/0.4*2*s; }
+                    else { dx=-s/2+(lt-0.8)/0.2*s; dy=0; }
+                    break;
+                case 'D':
+                    if(lt<0.3) { dx=-s; dy=-s+lt/0.3*2*s; }
+                    else { const a=-Math.PI/2+(lt-0.3)/0.7*Math.PI; dx=-s+Math.cos(a)*2*s; dy=Math.sin(a)*s; }
+                    break;
+                case 'E':
+                    if(lt<0.4) { dx=s; dy=-s; if(lt>0.1) { dx=s-(lt-0.1)/0.3*2*s; } if(lt>0.3) { dx=-s; dy=-s+(lt-0.3)/0.1*2*s; } }
+                    else if(lt<0.6) { dx=-s+(lt-0.4)/0.2*2*s; dy=s; }
+                    else if(lt<0.8) { dx=-s+(lt-0.6)/0.2*1.5*s; dy=0; }
+                    else { dx=-s; dy=-s+(lt-0.8)/0.2*2*s; }
+                    break;
+                case 'B':
+                    if(lt<0.2) { dx=-s; dy=-s+lt/0.2*2*s; }
+                    else if(lt<0.6) { const a=-Math.PI/2+(lt-0.2)/0.4*Math.PI; dx=-s+Math.cos(a)*s; dy=-s/2+Math.sin(a)*s/2; }
+                    else { const a=-Math.PI/2+(lt-0.6)/0.4*Math.PI; dx=-s+Math.cos(a)*s; dy=s/2+Math.sin(a)*s/2; }
+                    break;
+                case 'Y':
+                    if(lt<0.33) { dx=-s+lt/0.33*s; dy=-s+lt/0.33*s; }
+                    else if(lt<0.66) { dx=s-(lt-0.33)/0.33*s; dy=-s+(lt-0.33)/0.33*s; }
+                    else { dx=0; dy=(lt-0.66)/0.34*s; }
+                    break;
+                case 'P':
+                    if(lt<0.4) { dx=-s; dy=s-lt/0.4*2*s; }
+                    else { const a=-Math.PI/2+(lt-0.4)/0.6*Math.PI; dx=-s+Math.cos(a)*s; dy=-s/2+Math.sin(a)*s/2; }
+                    break;
+                case 'N':
+                    if(lt<0.33) { dx=-s; dy=s-lt/0.33*2*s; }
+                    else if(lt<0.66) { dx=-s+(lt-0.33)/0.33*2*s; dy=-s+(lt-0.33)/0.33*2*s; }
+                    else { dx=s; dy=-s+(lt-0.66)/0.34*2*s; }
+                    break;
+                case 'S':
+                    const a = lt * Math.PI * 3; dx = Math.cos(a)*s; dy = -s + lt*2*s;
+                    break;
+                case 'H':
+                    if(lt<0.33) { dx=-s; dy=-s+lt/0.33*2*s; }
+                    else if(lt<0.66) { dx=s; dy=-s+(lt-0.33)/0.33*2*s; }
+                    else { dx=-s+(lt-0.66)/0.34*2*s; dy=0; }
+                    break;
+                case 'U':
+                    if(lt<0.3) { dx=-s; dy=-s+lt/0.3*s; }
+                    else if(lt<0.7) { const an=Math.PI-(lt-0.3)/0.4*Math.PI; dx=Math.cos(an)*s; dy=Math.sin(an)*s; }
+                    else { dx=s; dy=s-(lt-0.7)/0.3*2*s; }
+                    break;
+                default: dx=0; dy=0; break;
+            }
+            
+            return {x: cx + dx, y: cy + dy};
         }
 
         function getRudeGesturePoint(t, scale) {
@@ -937,7 +1258,30 @@
                 if (interactionMode === 'PLAYING_ANIMATION') {
                     const animTime = (Date.now() - idleController.animStartTime) / 1000;
 
-                    if (idleController.currentAnim === 'BLACK_HOLE') {
+                    if (idleController.currentAnim === 'DNA_HELIX') {
+                        // NEW LOGIC FOR DNA HELIX
+                        in3DMode = true; // Enable z-scaling
+                        const pt = getDNAPoint(this.tParamLinear, width, height, animTime);
+                        const dx = pt.x - this.x;
+                        const dy = pt.y - this.y;
+                        
+                        this.vx += dx * 0.08;
+                        this.vy += dy * 0.08;
+                        this.z = pt.z;
+                        this.customColor = pt.color;
+                    }
+                    // BIG EYE PARTICLE UPDATE
+                    else if (idleController.currentAnim === 'BIG_EYE') {
+                        const elapsed = Date.now() - idleController.animStartTime;
+                        const pt = getBigEyePoint(this.tParamLinear, width, height, elapsed);
+                        const dx = pt.x - this.x;
+                        const dy = pt.y - this.y;
+                        
+                        this.vx += dx * 0.15;
+                        this.vy += dy * 0.15;
+                        this.customColor = pt.color;
+                    }
+                    else if (idleController.currentAnim === 'BLACK_HOLE') {
                         // Physics: Gravity Well that moves
                         const bh = idleController.blackHole;
                         const dx = bh.x - this.x;
@@ -999,6 +1343,33 @@
                         this.vy += dy * 0.08;
                         this.customColor = pt.color;
                     }
+                    else if (idleController.currentAnim === 'CREDITS') {
+                        const elapsed = Date.now() - idleController.animStartTime;
+                        if (elapsed < 8000) {
+                            const pt = getCreditsPoint(this.tParamLinear, width, height);
+                            const dx = pt.x - this.x;
+                            const dy = pt.y - this.y;
+                            this.vx += dx * 0.1;
+                            this.vy += dy * 0.1;
+                            // White/Grey Gradient
+                            const val = 150 + Math.floor(Math.random() * 105);
+                            this.customColor = `rgb(${val}, ${val}, ${val})`;
+                        } else {
+                            // Explosion into stars
+                            const cx = width / 2;
+                            const cy = height / 2;
+                            const dx = this.x - cx;
+                            const dy = this.y - cy;
+                            
+                            this.vx += dx * 0.02;
+                            this.vy += dy * 0.02;
+                            this.customColor = '#FFFFFF';
+                            this.vx += (Math.random() - 0.5) * 2;
+                            this.vy += (Math.random() - 0.5) * 2;
+                        }
+                    }
+                    
+                    if(!in3DMode && idleController.currentAnim !== 'DNA_HELIX') this.z = 0;
                     return;
                 }
 
@@ -1159,7 +1530,7 @@
                 const drawSize = Math.max(0.5, this.size * scale);
                 
                 let alpha = this.alpha();
-                if (interactionMode === 'TWO_WORMHOLE') {
+                if (interactionMode === 'TWO_WORMHOLE' || idleController.currentAnim === 'DNA_HELIX') {
                     if (this.z < -10) alpha *= 0.4; 
                     else if (this.z > 10) alpha = Math.min(1, alpha * 1.3);
                 }
@@ -1256,7 +1627,7 @@
             // Logic to transition between WAITING and PLAYING
             if (idleController.state === 'WAITING') {
                 interactionMode = 'IDLE';
-                handStatus.innerText = "IDLE: DRIFTING...";
+                handStatus.innerText = "IDLE";
                 
                 if (Date.now() - idleController.lastActionTime > idleController.waitDuration) {
                     // Sequential selection
@@ -1287,10 +1658,10 @@
                         bh.vy = Math.sin(angle) * speed;
                     } 
                     else if (idleController.currentAnim === 'COMET_SHOWER') {
-                         // Random direction
-                         const angle = Math.random() * PI2;
-                         idleController.cometDirection.x = Math.cos(angle);
-                         idleController.cometDirection.y = Math.sin(angle);
+                          // Random direction
+                          const angle = Math.random() * PI2;
+                          idleController.cometDirection.x = Math.cos(angle);
+                          idleController.cometDirection.y = Math.sin(angle);
                     }
                     else if (idleController.currentAnim === 'SOLAR_FLYBY') {
                         const sf = idleController.solarFlyby;
@@ -1338,6 +1709,14 @@
                 else if (idleController.currentAnim === 'COMET_SHOWER') {
                     if (elapsed > 8000) finished = true;
                 } 
+                else if (idleController.currentAnim === 'DNA_HELIX') {
+                    // DNA needs about 12 seconds to look good looping
+                    if (elapsed > 12000) finished = true;
+                }
+                else if (idleController.currentAnim === 'BIG_EYE') {
+                    // 12 Seconds: 3s left, 4s pan, 2s center, 3s stare
+                    if (elapsed > 12000) finished = true;
+                }
                 else if (idleController.currentAnim === 'QUESTION_MARK') {
                     if (elapsed > 7000) finished = true;
                 }
@@ -1346,6 +1725,9 @@
                     sf.x += sf.vx;
                     sf.y += sf.vy;
                     if (sf.x > width + 300) finished = true;
+                }
+                else if (idleController.currentAnim === 'CREDITS') {
+                    if (elapsed > 10000) finished = true;
                 }
 
                 if (finished) {
@@ -1406,8 +1788,6 @@
         }
 
         function updateTouchState(e) {
-            interactionMode = 'ONE_SIMPLE';
-            
             // Calculate Centroid
             let tx = 0, ty = 0;
             const count = e.touches.length;
@@ -1415,18 +1795,34 @@
                 tx += e.touches[i].clientX;
                 ty += e.touches[i].clientY;
             }
+            
+            // Set primary target to centroid
             targetPosition.x = tx / count;
             targetPosition.y = ty / count;
+            
+            // Sync secondary target to centroid for single-point multi-touch modes
+            // This ensures modes using (t1+t2)/2 calculations work correctly with one touch point
+            targetPosition2.x = targetPosition.x;
+            targetPosition2.y = targetPosition.y;
 
             // Logic based on finger count
             if (count === 1) {
+                interactionMode = 'ONE_SIMPLE';
                 hand1State = currentTouchMode;
             } else if (count === 2) {
-                hand1State = 'OK_SIGN'; // Align/Solar
-                handStatus.innerText = "MULTI-TOUCH: ALIGNMENT";
-            } else if (count >= 3) {
+                interactionMode = 'ONE_SIMPLE';
                 hand1State = 'SINGULARITY';
-                handStatus.innerText = "MULTI-TOUCH: SINGULARITY";
+                handStatus.innerText = "MULTI-TOUCH: SINGULARITY (2)";
+            } else if (count === 3) {
+                interactionMode = 'ONE_SIMPLE';
+                hand1State = 'OK_SIGN'; // Alignment / Solar
+                handStatus.innerText = "MULTI-TOUCH: ALIGNMENT (3)";
+            } else if (count === 4) {
+                interactionMode = 'TWO_HEART';
+                handStatus.innerText = "MULTI-TOUCH: HEART (4)";
+            } else if (count >= 5) {
+                interactionMode = 'TWO_BLACK_HOLE';
+                handStatus.innerText = "MULTI-TOUCH: GALACTIC CORE (5)";
             }
         }
 
@@ -1827,7 +2223,7 @@
                             targetPosition2.x = x2; targetPosition2.y = y2;
                         }
                     } else {
-                         // Update positions for black hole
+                          // Update positions for black hole
                         const x1 = (1 - h1Raw[9].x) * width; 
                         const y1 = h1Raw[9].y * height;
                         const x2 = (1 - h2Raw[9].x) * width; 
