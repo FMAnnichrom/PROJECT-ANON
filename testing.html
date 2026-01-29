@@ -2,40 +2,44 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neural Pixel Space</title>
-    
-    <!-- MediaPipe Dependencies -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, orientation=landscape">
+    <title>Rift Wardens: The Infinite Siege</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap');
+
         body {
-            margin: 0;
-            overflow: hidden;
             background-color: #050505;
-            font-family: 'Courier New', Courier, monospace;
+            color: #e0e0e0;
+            font-family: 'Roboto Mono', monospace;
+            overflow: hidden;
+            touch-action: none;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; /* Prevent default touch actions */
         }
 
-        #canvas-container {
+        h1, h2, h3, .title-font {
+            font-family: 'Cinzel', serif;
+        }
+
+        #game-container {
             position: relative;
             width: 100vw;
             height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
         }
 
         canvas {
-            display: block;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            background-color: #1a472a; /* Fallback green */
+            image-rendering: pixelated; 
         }
 
-        .input_video {
-            display: none;
-        }
-
-        #ui-layer {
+        /* UI Overlays */
+        .overlay {
             position: absolute;
             top: 0;
             left: 0;
@@ -45,2311 +49,2458 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            pointer-events: none;
-            z-index: 10;
             background: rgba(0, 0, 0, 0.85);
-            transition: opacity 1s ease-out;
-            opacity: 0;
-        }
-
-        .hud-text {
-            color: #00ffea;
-            text-shadow: 0 0 10px #00ffea;
-            font-size: clamp(1rem, 4vw, 1.5rem); /* Responsive font size */
-            text-align: center;
-            margin-bottom: 20px;
-            letter-spacing: 2px;
-            opacity: 1;
-            transition: opacity 0.5s;
-            padding: 0 20px;
-        }
-
-        .status-indicator {
-            width: min(80%, 300px);
-            height: 4px;
-            background: #333;
-            margin-top: 10px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .status-bar {
-            position: absolute;
-            left: 0;
-            top: 0;
-            height: 100%;
-            width: 0%;
-            background: #ff0055;
-            box-shadow: 0 0 10px #ff0055;
-            transition: width 0.3s;
-        }
-
-        #achievement-popup {
-            position: absolute;
-            top: 15%;
-            left: 50%;
-            transform: translate(-50%, -50px);
-            background: rgba(0, 255, 234, 0.1);
-            border: 1px solid #00ffea;
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 4px;
-            font-size: clamp(0.9rem, 3vw, 1.2rem);
-            text-shadow: 0 0 5px #00ffea;
-            box-shadow: 0 0 20px rgba(0, 255, 234, 0.3);
-            opacity: 0;
-            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             z-index: 20;
-            pointer-events: none;
-            text-align: center;
-            backdrop-filter: blur(5px);
-            width: max-content;
-            max-width: 90vw;
+            transition: opacity 0.3s;
         }
 
-        #achievement-popup.visible {
-            opacity: 1;
-            transform: translate(-50%, 0);
+        .hidden {
+            display: none !important;
         }
 
-        #controls {
+        /* --- ANIMATIONS --- */
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 10px #eab308; }
+            50% { text-shadow: 0 0 20px #eab308, 0 0 30px #f59e0b; }
+            100% { text-shadow: 0 0 10px #eab308; }
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes godRays {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .anim-title { animation: slideDown 1s ease-out forwards, glow 3s infinite ease-in-out; }
+        .anim-subtitle { animation: slideDown 1s ease-out 0.3s forwards; opacity: 0; }
+        
+        .anim-btn-1 { animation: fadeInUp 0.6s ease-out 0.5s forwards; opacity: 0; }
+        .anim-btn-2 { animation: fadeInUp 0.6s ease-out 0.6s forwards; opacity: 0; }
+        .anim-btn-3 { animation: fadeInUp 0.6s ease-out 0.7s forwards; opacity: 0; }
+        .anim-btn-4 { animation: fadeInUp 0.6s ease-out 0.8s forwards; opacity: 0; }
+        
+        .anim-start { animation: fadeInUp 0.6s ease-out 1.2s forwards, float 3s ease-in-out infinite; opacity: 0; }
+
+        .pop-in { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        .victory-bg {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            width: min(220px, 45vw);
-            padding: 12px;
-            background: rgba(0, 20, 40, 0.85);
-            border: 1px solid #00ffea;
+            width: 200vw;
+            height: 200vw;
+            background: conic-gradient(from 0deg, transparent 0%, rgba(234, 179, 8, 0.1) 10%, transparent 20%, rgba(234, 179, 8, 0.1) 30%, transparent 40%);
+            animation: godRays 20s linear infinite;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Card Styles */
+        .card-container {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 2rem;
+            max-width: 100%;
+            z-index: 30;
+        }
+
+        /* Landscape Mobile Optimization for Cards */
+        @media (max-height: 500px) {
+            .card-container {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                justify-content: flex-start;
+                padding: 1rem;
+                width: 90vw;
+            }
+            .card {
+                min-width: 180px; /* Fixed width for scrolling */
+                height: 240px; /* Shorter height */
+            }
+        }
+
+        .card {
+            width: 200px;
+            height: 300px;
+            background: #1a1a1a;
+            border: 2px solid #444;
             border-radius: 8px;
-            z-index: 5;
-            color: #00ffea;
+            padding: 1rem;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            backdrop-filter: blur(8px);
+            justify-content: space-between;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+            position: relative;
+            overflow: hidden;
+            animation: fadeInUp 0.3s ease-out forwards;
+            opacity: 0; /* Handled by animation */
+            flex-shrink: 0;
+        }
+
+        .card:nth-child(1) { animation-delay: 0.1s; }
+        .card:nth-child(2) { animation-delay: 0.2s; }
+        .card:nth-child(3) { animation-delay: 0.3s; }
+        .card:nth-child(4) { animation-delay: 0.4s; }
+        .card:nth-child(5) { animation-delay: 0.5s; }
+
+        .card:hover, .card:active {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            z-index: 5;
+            background-color: #2a2a2a;
+            border-color: #fff;
+        }
+
+        /* Rarities */
+        .rarity-common { border-color: #a0a0a0; box-shadow: 0 0 5px #a0a0a0 inset; }
+        .rarity-rare { border-color: #3b82f6; box-shadow: 0 0 5px #3b82f6 inset; }
+        .rarity-epic { border-color: #a855f7; box-shadow: 0 0 5px #a855f7 inset; }
+        .rarity-legendary { border-color: #eab308; box-shadow: 0 0 10px #eab308 inset; animation: pulse-gold 2s infinite; }
+        
+        /* 5th Slot Special Style */
+        .card.fate-slot {
+            border-color: #f59e0b;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a1a00 100%);
+            box-shadow: 0 0 15px #f59e0b;
+        }
+
+        @keyframes pulse-gold {
+            0% { box-shadow: 0 0 10px #eab308 inset; }
+            50% { box-shadow: 0 0 20px #eab308 inset, 0 0 10px #eab308; }
+            100% { box-shadow: 0 0 10px #eab308 inset; }
+        }
+
+        .class-btn {
+            width: 200px;
+            padding: 1rem;
+            margin: 0.5rem;
+            border: 1px solid #444;
+            background: #222;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .class-btn:hover { background: #333; border-color: #666; transform: scale(1.05); }
+        .class-btn.selected { border-color: #eab308; background: #2a200a; transform: scale(1.05); box-shadow: 0 0 15px rgba(234, 179, 8, 0.2); }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%; /* Full screen for mobile layout */
+            padding: 1rem;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            z-index: 5;
+        }
+
+        /* Top Bar Layout */
+        .hud-top-left {
+            pointer-events: none;
+        }
+        .hud-top-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
             pointer-events: auto;
         }
 
-        @media (max-width: 600px) {
-            #controls {
-                top: 10px;
-                right: 10px;
-                padding: 8px;
-                width: 140px;
-                gap: 8px;
-            }
-            .control-group label {
-                font-size: 0.6rem;
-            }
-            button#rgb-btn {
-                padding: 6px 4px !important;
-                font-size: 0.65rem !important;
-            }
-        }
-
-        /* Landscape adjustment for controls */
-        @media (max-height: 500px) and (orientation: landscape) {
-            #controls {
-                top: 5px;
-                right: 5px;
-                padding: 6px;
-                transform: scale(0.85);
-                transform-origin: top right;
-            }
-        }
-
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .color-row {
-            display: flex;
-            gap: 8px;
-            justify-content: space-between;
-        }
-
-        .color-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            flex: 1;
-        }
-
-        label {
-            font-size: 0.7rem;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        input[type="range"] {
-            width: 100%;
-            accent-color: #00ffea;
-            height: 15px;
+        #pauseBtn {
+            pointer-events: auto;
             cursor: pointer;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #666;
+            color: #ddd;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: 'Cinzel', serif;
+            margin-bottom: 5px;
         }
+        #pauseBtn:hover { background: #444; }
 
-        input[type="color"] {
-            width: 100%;
-            height: 25px;
-            border: 1px solid #444;
-            background: none;
-            padding: 0;
-            cursor: pointer;
-        }
-
-        button#rgb-btn {
-            background: transparent;
-            border: 1px solid #ff0055;
-            color: #ff0055;
-            padding: 10px 8px;
-            font-family: inherit;
-            font-weight: bold;
-            font-size: 0.75rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-shadow: 0 0 5px #ff0055;
-            box-shadow: 0 0 5px #ff0055 inset;
-        }
-
-        button#rgb-btn:hover, button#rgb-btn:active {
-            background: #ff0055;
-            color: white;
-            box-shadow: 0 0 15px #ff0055;
-        }
-
-        button#rgb-btn.active {
-            animation: rainbow-bg 0.5s infinite;
-            border-color: white;
-            color: white;
-            text-shadow: 0 0 5px black;
-        }
-
-        @keyframes rainbow-bg {
-            0% { background-color: #ff0000; }
-            20% { background-color: #ffff00; }
-            40% { background-color: #00ff00; }
-            60% { background-color: #00ffff; }
-            80% { background-color: #0000ff; }
-            100% { background-color: #ff00ff; }
-        }
-
-        @keyframes glitch {
-            0% { transform: translate(0) }
-            20% { transform: translate(-2px, 2px) }
-            40% { transform: translate(-2px, -2px) }
-            60% { transform: translate(2px, 2px) }
-            80% { transform: translate(2px, -2px) }
-            100% { transform: translate(0) }
-        }
-
-        .glitch {
-            animation: glitch 0.5s infinite;
-            display: inline-block;
-        }
-
-        #debug-info {
+        /* Mobile Controls */
+        #mobileControls {
             position: absolute;
             bottom: 20px;
             left: 20px;
-            color: #555;
-            font-size: 0.7rem;
+            right: 20px;
+            height: 150px;
             pointer-events: none;
-            max-width: 60%;
-            line-height: 1.4;
+            display: none; /* Shown via JS detection */
+            justify-content: space-between;
+            align-items: flex-end;
+            z-index: 15;
         }
 
-        /* Splash Screen Animation */
-        @keyframes textGlow {
-            0% { text-shadow: 0 0 10px #00ffea; opacity: 0; transform: scale(0.9); }
-            20% { text-shadow: 0 0 25px #00ffea; opacity: 1; transform: scale(1); }
-            80% { text-shadow: 0 0 25px #00ffea; opacity: 1; transform: scale(1); }
-            100% { text-shadow: 0 0 5px #00ffea; opacity: 0; transform: scale(1.1); }
+        /* Joystick */
+        #joystickZone {
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            position: relative;
+            pointer-events: auto;
+        }
+
+        #joystickKnob {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            position: absolute;
+            top: 35px;
+            left: 35px;
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        /* Action Buttons Area (Right Side) */
+        #actionButtons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-end;
+            pointer-events: auto;
+            margin-bottom: 20px;
+            margin-right: 10px;
+        }
+
+        .action-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #666;
+            color: white;
+            font-size: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Cinzel', serif;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.1s, background 0.1s;
+        }
+
+        .action-btn:active { transform: scale(0.95); background: rgba(50, 50, 50, 0.8); }
+        .action-btn.active { border-color: #eab308; color: #eab308; }
+
+        #btnSummon {
+            border-color: #a855f7;
+            color: #d8b4fe;
+            display: none; /* Necro Only */
+        }
+        #btnSummon span { font-size: 18px; font-weight: bold; }
+        
+        #btnToggleMode {
+            width: 50px;
+            height: 50px;
+            font-size: 8px;
+            display: none; /* Necro Only */
+        }
+
+        /* Desktop specific styles for hidden things */
+        .desktop-summon-btn {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #a855f7;
+            color: #d8b4fe;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: 'Cinzel', serif;
+            margin-top: 5px;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        .desktop-summon-btn:hover { background: #444; }
+
+        /* Formation Controls */
+        #formationControls {
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px;
+            border-radius: 5px;
+            border: 1px solid #a855f7;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .form-btn {
+            font-size: 10px;
+            padding: 2px 6px;
+            margin: 2px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            cursor: pointer;
+        }
+        .form-btn:hover { background: #555; }
+        .form-btn.active { background: #a855f7; border-color: #fff; }
+
+        .bar-container {
+            background: #333;
+            height: 10px;
+            width: 200px;
+            margin-top: 5px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .bar-fill { height: 100%; transition: width 0.2s; }
+        .hp-fill { background: #ef4444; }
+        .xp-fill { background: #3b82f6; }
+        .shield-pip {
+            width: 15px; height: 15px; background: #0ea5e9; border-radius: 50%;
+            display: inline-block; margin-right: 5px; border: 2px solid #fff;
         }
     </style>
 </head>
 <body>
 
-    <div id="canvas-container">
-        <canvas id="output_canvas"></canvas>
-        <video class="input_video"></video>
-        
-        <!-- SPLASH SCREEN -->
-        <div id="splash-screen" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none;">
-            <div style="animation: textGlow 2.5s ease-in-out forwards; text-align: center; padding: 0 20px;">
-                <div style="color: #00ffea; font-size: clamp(1.5rem, 5vw, 2.5rem); letter-spacing: 5px; font-weight: bold; margin-bottom: 15px;">
-                    NEURAL PIXEL SPACE
-                </div>
-                <div id="mobile-indicator" style="color: white; font-size: clamp(0.8rem, 3vw, 1.2rem); letter-spacing: 3px; font-family: 'Courier New', Courier, monospace;">
-                    MOBILE OPTIMIZED
-                </div>
-            </div>
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Mobile Controls Layer -->
+    <div id="mobileControls">
+        <div id="joystickZone">
+            <div id="joystickKnob"></div>
         </div>
-
-        <div id="achievement-popup">
-            🏆 ACHIEVEMENT UNLOCKED<br>
-            <span id="ach-text" style="font-size:0.9rem; color:#fff;">SYSTEM BALANCED</span>
+        <div id="actionButtons">
+            <button id="btnSummon" class="action-btn" onclick="triggerManualSummon()">
+                <span>💀</span>
+                <div style="font-size: 8px; margin-top: 2px">SUMMON (<span id="soulCountMobile">0</span>)</div>
+            </button>
+            <button id="btnToggleMode" class="action-btn" onclick="toggleSummonMode()">
+                <div id="modeText">AUTO</div>
+                <div style="font-size: 6px; color: #aaa;">MODE</div>
+            </button>
         </div>
-
-        <div id="controls">
-            <div class="control-group">
-                <label>DENSITY: <span id="density-val">600</span></label>
-                <input type="range" id="particle-slider" min="200" max="3000" step="100" value="600">
-            </div>
-
-            <div class="control-group">
-                <div class="color-row">
-                    <div class="color-item">
-                        <label>CLR A</label>
-                        <input type="color" id="color-a-picker" value="#00ffea">
-                    </div>
-                    <div class="color-item">
-                        <label>CLR B</label>
-                        <input type="color" id="color-b-picker" value="#ff0055">
-                    </div>
-                </div>
-            </div>
-
-            <button id="rgb-btn">RGB MODE</button>
-        </div>
-
-        <div id="ui-layer">
-            <div id="intro-text" class="hud-text">INITIALIZING NEURAL LINK...</div>
-            <div class="status-indicator">
-                <div id="loading-bar" class="status-bar"></div>
-            </div>
-            <div id="instruction-text" class="hud-text" style="font-size: 1rem; color: #fff; margin-top: 20px; display:none;">
-                ALLOW CAMERA OR TOUCH TO BEGIN
-            </div>
-        </div>
-
-        <div id="debug-info">Stats: Particles: <span id="p-count">0</span> | Mode: <span id="h-status">Searching...</span></div>
     </div>
 
-    <script>
-        // --- Configuration ---
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+        <div class="hud-top-left flex flex-col gap-2">
+            <div>
+                <div class="text-sm font-bold text-red-400">HEALTH</div>
+                <div class="bar-container"><div id="hpBar" class="bar-fill hp-fill" style="width: 100%"></div></div>
+                <div id="shieldContainer" class="mt-1"></div>
+            </div>
+            <div>
+                <div class="text-sm font-bold text-blue-400">EXP <span id="lvlDisplay">LVL 1</span></div>
+                <div class="bar-container"><div id="xpBar" class="bar-fill xp-fill" style="width: 0%"></div></div>
+            </div>
+        </div>
+
+        <div class="hud-top-right">
+            <button id="pauseBtn" onclick="togglePause()">II PAUSE</button>
+            
+            <!-- Desktop Buttons (Hidden on mobile via JS logic potentially or kept small) -->
+            <button id="desktopSummonBtn" class="desktop-summon-btn hidden" onclick="triggerManualSummon()">
+                SUMMON (<span id="soulCount">0</span>)
+            </button>
+            
+            <div id="formationControls" class="hidden">
+                <div class="text-[10px] text-purple-300 font-bold mb-1">FORMATION</div>
+                <div class="flex">
+                    <button class="form-btn active" onclick="setFormation('circle')">○</button>
+                    <button class="form-btn" onclick="setFormation('square')">□</button>
+                    <button class="form-btn" onclick="setFormation('triangle')">△</button>
+                </div>
+                <div class="flex mt-1">
+                    <button class="form-btn" onclick="adjustFormationSize(-10)">-</button>
+                    <span class="text-[10px] text-gray-300 mx-1">SIZE</span>
+                    <button class="form-btn" onclick="adjustFormationSize(10)">+</button>
+                </div>
+            </div>
+
+            <div class="text-2xl title-font text-yellow-500 mt-2" id="timerDisplay">00:00</div>
+            <div class="text-sm text-gray-400">Kill Count: <span id="killCount">0</span></div>
+            <div class="text-xs text-gray-500 mt-2" id="classDisplay">Arch-Magus</div>
+            <div id="minionCountDisplay" class="text-xs text-purple-400 hidden">Thralls: 0/5</div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="startScreen" class="overlay">
+        <h1 class="text-4xl md:text-6xl text-yellow-500 mb-2 title-font tracking-widest text-center anim-title">RIFT WARDENS</h1>
+        <h2 class="text-xl md:text-2xl text-gray-400 mb-8 tracking-wider anim-subtitle">THE INFINITE SIEGE</h2>
         
-        // Hide mobile indicator if on desktop
-        if (!isMobile) {
-            const ind = document.getElementById('mobile-indicator');
-            if (ind) ind.style.display = 'none';
+        <!-- Mobile: Scrollable/Wrapped Class Selection -->
+        <div class="flex flex-wrap justify-center gap-4 mb-8 overflow-y-auto max-h-[50vh] p-2">
+            <button class="class-btn selected anim-btn-1" onclick="selectClass('mage')">
+                <div class="font-bold text-blue-400 text-lg">Arch-Magus</div>
+                <div class="text-xs text-gray-400">Glass Cannon, Elemental Magic</div>
+                <div class="text-xs text-gray-500 mt-1">Ult: Cataclysm</div>
+            </button>
+            <button class="class-btn anim-btn-2" onclick="selectClass('tank')">
+                <div class="font-bold text-gray-300 text-lg">Iron Bastion</div>
+                <div class="text-xs text-gray-400">High HP, Damage Shield</div>
+                <div class="text-xs text-gray-500 mt-1">Passive: Aegis Plating</div>
+            </button>
+            <button class="class-btn anim-btn-3" onclick="selectClass('scout')">
+                <div class="font-bold text-green-400 text-lg">Swiftblade</div>
+                <div class="text-xs text-gray-400">Fast, Infinite Poison Stacks</div>
+                <div class="text-xs text-gray-500 mt-1">Passive: Viper's Edge</div>
+            </button>
+            <button class="class-btn anim-btn-4" onclick="selectClass('necro')">
+                <div class="font-bold text-purple-500 text-lg">Grave Lord</div>
+                <div class="text-xs text-gray-400">Summoner, Immortal Minions</div>
+                <div class="text-xs text-gray-500 mt-1">Passive: Eternal Servitude</div>
+            </button>
+        </div>
+
+        <button onclick="startGame()" class="px-8 py-3 bg-red-800 hover:bg-red-700 text-white font-bold rounded text-xl border border-red-500 transition-colors title-font anim-start">
+            ENTER THE RIFT
+        </button>
+        <p class="mt-4 text-xs text-gray-600 anim-subtitle text-center px-4">WASD / Touch Joystick to Move • Auto-Aim</p>
+    </div>
+
+    <!-- Level Up Screen -->
+    <div id="levelUpScreen" class="overlay hidden">
+        <div class="pop-in flex flex-col items-center w-full">
+            <h2 class="text-4xl text-yellow-400 title-font mb-2">LEVEL UP!</h2>
+            <p class="text-gray-400 mb-6">Choose your destiny</p>
+            <div id="cardsContainer" class="card-container">
+                <!-- Cards injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Screen -->
+    <div id="pauseScreen" class="overlay hidden">
+        <div class="pop-in text-center bg-gray-900 p-8 rounded-lg border-2 border-gray-600">
+            <h2 class="text-5xl text-gray-300 title-font mb-6">PAUSED</h2>
+            <div class="flex flex-col gap-4">
+                <button onclick="togglePause()" class="px-6 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded">RESUME</button>
+                <button onclick="location.reload()" class="px-6 py-2 bg-red-800 hover:bg-red-700 text-white rounded">QUIT TO TITLE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="overlay hidden">
+        <div class="pop-in text-center">
+            <h2 class="text-5xl text-red-600 title-font mb-4">YOU DIED</h2>
+            <p class="text-xl text-gray-300 mb-8">Survived: <span id="deathTime">00:00</span></p>
+            <button onclick="location.reload()" class="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">Try Again</button>
+        </div>
+    </div>
+
+     <!-- Victory Screen -->
+     <div id="victoryScreen" class="overlay hidden overflow-hidden">
+        <div class="victory-bg"></div>
+        <div class="pop-in text-center z-10">
+            <h2 class="text-6xl text-yellow-500 title-font mb-4 drop-shadow-lg">VICTORY</h2>
+            <p class="text-xl text-gray-300 mb-8">The Realm is Cleansed.</p>
+            <div class="flex gap-4 justify-center">
+                <button onclick="continueGame()" class="px-8 py-3 bg-green-700 hover:bg-green-600 text-white rounded font-bold border border-green-400">Continue (Endless)</button>
+                <button onclick="location.reload()" class="px-8 py-3 bg-red-700 hover:bg-red-600 text-white rounded font-bold border border-red-400">Quit</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * RIFT WARDENS - SINGLE FILE JS GAME ENGINE
+ */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Game Constants
+const TILE_SIZE = 64;
+const WORLD_WIDTH = 4000; 
+const WORLD_HEIGHT = 4000;
+const FPS = 60;
+
+// Sprite System Constants
+const SPRITE_SIZE = 16;
+const SPRITE_SCALE = 3; // 16x3 = 48px visual size
+const ANIM_SPEED_PLAYER = 10;
+const ANIM_SPEED_ENEMY = 20; 
+const GLOBAL_SPRITES = {};
+
+// Background and Obstacles
+let grassPattern = null;
+let obstacles = [];
+
+// Color Palettes for Classes
+const CLASS_PALETTES = {
+    mage: { robe: '#3b82f6', hat: '#1e3a8a', skin: '#fbc531', staff: '#8e44ad', wood: '#d35400' },
+    tank: { robe: '#64748b', hat: '#334155', skin: '#fbc531', staff: '#475569', wood: '#1e293b' }, 
+    scout: { robe: '#22c55e', hat: '#14532d', skin: '#fbc531', staff: '#ca8a04', wood: '#713f12' }, 
+    necro: { robe: '#1f2937', hat: '#581c87', skin: '#e5e7eb', staff: '#a855f7', wood: '#4c1d95' }  
+};
+
+// State Management
+let gameState = 'START'; 
+let selectedClassKey = 'mage';
+let lastTime = 0;
+let gameTime = 0;
+let spawnTimer = 0;
+let keys = {};
+let mouseX = 0;
+let mouseY = 0;
+let bossDefeated = false;
+let victoryTriggered = false; 
+let manualSummon = false; 
+let lastBossLevel = 0; 
+let bossActive = false; 
+
+// Mobile Detection
+const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+// Camera
+const camera = { x: 0, y: 0 };
+
+// Entities
+let player;
+let enemies = [];
+let projectiles = [];
+let particles = [];
+let lootDrops = []; 
+let damageNumbers = [];
+let minions = []; 
+
+// Progression
+let level = 1;
+let xp = 0;
+let xpToNextLevel = 100;
+let killCount = 0;
+let oracleEyeUnlocked = false; 
+
+// Classes Configuration
+const CLASSES = {
+    mage: { name: "Arch-Magus", hp: 80, speed: 2.5, color: '#3b82f6', attackCooldown: 40, description: "Elemental glass cannon.", baseDmg: 15 },
+    tank: { name: "Iron Bastion", hp: 200, speed: 1.8, color: '#9ca3af', attackCooldown: 60, description: "Tanky with regenerating shield.", baseDmg: 35 },
+    scout: { name: "Swiftblade", hp: 70, speed: 3.5, color: '#22c55e', attackCooldown: 15, description: "Fast poison stacker.", baseDmg: 8 },
+    necro: { name: "Grave Lord", hp: 100, speed: 2.2, color: '#a855f7', attackCooldown: 50, description: "Summons undead army.", baseDmg: 10 }
+};
+
+// --- SPRITE GENERATION ---
+
+function generateWizardSprite(colors) {
+    const pCanvas = document.createElement('canvas');
+    pCanvas.width = SPRITE_SIZE * 4;
+    pCanvas.height = SPRITE_SIZE * 4;
+    const pCtx = pCanvas.getContext('2d');
+
+    for(let row = 0; row < 4; row++) { 
+        for(let col = 0; col < 4; col++) {
+            let cx = col * SPRITE_SIZE;
+            let cy = row * SPRITE_SIZE;
+            let bounce = (col === 1 || col === 3) ? 1 : 0; 
+
+            pCtx.fillStyle = 'rgba(0,0,0,0.3)';
+            pCtx.fillRect(cx + 4, cy + 14, 8, 2);
+            pCtx.fillStyle = colors.robe;
+            pCtx.fillRect(cx + 4, cy + 9 - bounce, 8, 6); 
+            pCtx.fillStyle = colors.skin;
+            pCtx.fillRect(cx + 5, cy + 5 - bounce, 6, 5);
+            pCtx.fillStyle = colors.hat;
+            pCtx.fillRect(cx + 2, cy + 4 - bounce, 12, 2);
+            pCtx.fillRect(cx + 4, cy + 1 - bounce, 8, 3);
+            pCtx.fillRect(cx + 6, cy - 1 - bounce, 4, 2);
+            pCtx.fillRect(cx + 7, cy - 2 - bounce, 2, 1);
+
+            if (row === 0) { // Down
+                pCtx.fillStyle = '#000';
+                pCtx.fillRect(cx + 6, cy + 7 - bounce, 1, 1);
+                pCtx.fillRect(cx + 9, cy + 7 - bounce, 1, 1);
+                pCtx.fillStyle = '#fff'; // Beard
+                pCtx.fillRect(cx + 5, cy + 9 - bounce, 6, 2);
+                pCtx.fillRect(cx + 6, cy + 11 - bounce, 4, 1);
+            } else if (row === 3) { // Up
+                pCtx.fillStyle = colors.hat;
+                pCtx.fillRect(cx + 4, cy + 4 - bounce, 8, 7);
+                pCtx.fillStyle = colors.robe;
+                pCtx.fillRect(cx + 7, cy + 8 - bounce, 2, 6);
+            } else if (row === 1) { // Left
+                pCtx.fillStyle = colors.hat;
+                pCtx.fillRect(cx + 4, cy + 4 - bounce, 7, 2);
+                pCtx.fillStyle = '#000';
+                pCtx.fillRect(cx + 5, cy + 7 - bounce, 1, 1);
+                pCtx.fillStyle = '#fff';
+                pCtx.fillRect(cx + 4, cy + 9 - bounce, 3, 2);
+                pCtx.fillStyle = colors.wood; // Staff
+                pCtx.fillRect(cx + 8, cy + 6 - bounce, 1, 8);
+                pCtx.fillStyle = 'red'; 
+                pCtx.fillRect(cx + 7, cy + 5 - bounce, 3, 1);
+            } else if (row === 2) { // Right
+                pCtx.fillStyle = colors.hat;
+                pCtx.fillRect(cx + 5, cy + 4 - bounce, 7, 2);
+                pCtx.fillStyle = '#000';
+                pCtx.fillRect(cx + 10, cy + 7 - bounce, 1, 1);
+                pCtx.fillStyle = '#fff';
+                pCtx.fillRect(cx + 9, cy + 9 - bounce, 3, 2);
+                pCtx.fillStyle = colors.wood; // Staff
+                pCtx.fillRect(cx + 12, cy + 6 - bounce, 1, 8);
+                pCtx.fillStyle = 'red'; 
+                pCtx.fillRect(cx + 11, cy + 5 - bounce, 3, 1);
+            }
+
+            pCtx.fillStyle = '#130f40';
+            if (col === 0 || col === 2) { 
+                pCtx.fillRect(cx + 5, cy + 15, 2, 1);
+                pCtx.fillRect(cx + 9, cy + 15, 2, 1);
+            } else if (col === 1) { 
+                pCtx.fillRect(cx + 4, cy + 14, 2, 2); 
+                pCtx.fillRect(cx + 10, cy + 15, 2, 1);
+            } else if (col === 3) { 
+                pCtx.fillRect(cx + 5, cy + 15, 2, 1);
+                pCtx.fillRect(cx + 10, cy + 14, 2, 2); 
+            }
+        }
+    }
+    const img = new Image();
+    img.src = pCanvas.toDataURL();
+    return img;
+}
+
+function generateGolemSprite(colors) {
+    const pCanvas = document.createElement('canvas');
+    pCanvas.width = SPRITE_SIZE * 4;
+    pCanvas.height = SPRITE_SIZE * 4;
+    const pCtx = pCanvas.getContext('2d');
+
+    for(let row = 0; row < 4; row++) {
+        for(let col = 0; col < 4; col++) {
+            let cx = col * SPRITE_SIZE;
+            let cy = row * SPRITE_SIZE;
+            let bounce = (col === 1 || col === 3) ? 1 : 0;
+
+            pCtx.fillStyle = 'rgba(0,0,0,0.3)';
+            pCtx.fillRect(cx + 1, cy + 14, 14, 2);
+
+            let ty = cy + 4 - bounce;
+            pCtx.fillStyle = colors.base;
+            pCtx.fillRect(cx + 2, ty, 12, 10);
+            pCtx.fillStyle = colors.dark;
+            pCtx.fillRect(cx + 12, ty, 2, 10);
+            pCtx.fillRect(cx + 2, ty + 8, 12, 2);
+            pCtx.fillStyle = colors.light;
+            pCtx.fillRect(cx + 4, ty - 3, 8, 3);
+            pCtx.fillStyle = colors.base;
+            pCtx.fillRect(cx + 4, ty, 8, 2);
+
+            if (row === 0) { // Down
+                pCtx.fillStyle = colors.light;
+                pCtx.fillRect(cx + 1, ty, 3, 6); 
+                pCtx.fillRect(cx + 12, ty, 3, 6); 
+                pCtx.fillStyle = colors.dark;
+                pCtx.fillRect(cx + 1, ty + 6, 3, 3);
+                pCtx.fillRect(cx + 12, ty + 6, 3, 3);
+                pCtx.fillStyle = colors.eyes;
+                pCtx.fillRect(cx + 5, ty + 1, 2, 1);
+                pCtx.fillRect(cx + 9, ty + 1, 2, 1);
+            } else if (row === 3) { // Up
+                pCtx.fillStyle = colors.light;
+                pCtx.fillRect(cx + 3, ty - 2, 10, 4);
+                pCtx.fillStyle = colors.moss;
+                pCtx.fillRect(cx + 4, ty + 3, 2, 2);
+                pCtx.fillRect(cx + 8, ty + 5, 3, 2);
+            } else if (row === 1) { // Left
+                pCtx.fillStyle = colors.light;
+                pCtx.fillRect(cx + 3, ty - 1, 7, 9);
+                pCtx.fillStyle = colors.dark;
+                pCtx.fillRect(cx + 3, ty + 8, 7, 2);
+                pCtx.fillStyle = colors.eyes;
+                pCtx.fillRect(cx + 2, ty + 1, 1, 1);
+            } else if (row === 2) { // Right
+                pCtx.fillStyle = colors.light;
+                pCtx.fillRect(cx + 6, ty - 1, 7, 9);
+                pCtx.fillStyle = colors.dark;
+                pCtx.fillRect(cx + 6, ty + 8, 7, 2);
+                pCtx.fillStyle = colors.eyes;
+                pCtx.fillRect(cx + 13, ty + 1, 1, 1);
+            }
+
+            pCtx.fillStyle = colors.dark;
+            if (col === 1) { pCtx.fillRect(cx + 2, cy + 13, 4, 3); pCtx.fillRect(cx + 11, cy + 12, 4, 2); } 
+            else if (col === 3) { pCtx.fillRect(cx + 2, cy + 12, 4, 2); pCtx.fillRect(cx + 11, cy + 13, 4, 3); } 
+            else { pCtx.fillRect(cx + 2, cy + 13, 4, 3); pCtx.fillRect(cx + 11, cy + 13, 4, 3); }
+        }
+    }
+    const img = new Image();
+    img.src = pCanvas.toDataURL();
+    return img;
+}
+
+function generateSlimeSprite(colors) {
+    const pCanvas = document.createElement('canvas');
+    pCanvas.width = SPRITE_SIZE * 4;
+    pCanvas.height = SPRITE_SIZE * 4;
+    const pCtx = pCanvas.getContext('2d');
+
+    for(let row = 0; row < 4; row++) {
+        for(let col = 0; col < 4; col++) {
+            let cx = col * SPRITE_SIZE;
+            let cy = row * SPRITE_SIZE;
+            let w = 10, h = 10, ox = 3, oy = 6;
+
+            if (col === 1 || col === 3) { h = 12; w = 8; ox = 4; oy = 3; } 
+            else { h = 8; w = 12; ox = 2; oy = 8; }
+
+            pCtx.fillStyle = 'rgba(0,0,0,0.2)';
+            pCtx.fillRect(cx + 3, cy + 13, 10, 2);
+
+            pCtx.fillStyle = colors.outer;
+            pCtx.fillRect(cx + ox, cy + oy, w, h);
+            pCtx.fillStyle = colors.core;
+            pCtx.fillRect(cx + ox + 1, cy + oy + 1, w - 2, h - 2);
+            pCtx.fillStyle = colors.shine;
+            pCtx.fillRect(cx + ox + 2, cy + oy + 2, 1, 1);
+
+            if (row !== 3) { 
+                pCtx.fillStyle = colors.eye;
+                let eyeY = cy + oy + (h/2) - 1;
+                if(row === 0) {
+                    pCtx.fillRect(cx + ox + 2, eyeY, 1, 2);
+                    pCtx.fillRect(cx + ox + w - 3, eyeY, 1, 2);
+                } else if (row === 1) {
+                    pCtx.fillRect(cx + ox + 1, eyeY, 1, 2);
+                } else if (row === 2) {
+                    pCtx.fillRect(cx + ox + w - 2, eyeY, 1, 2);
+                }
+            }
+        }
+    }
+    const img = new Image();
+    img.src = pCanvas.toDataURL();
+    return img;
+}
+
+function generateDragonSprite(colors) {
+    const pCanvas = document.createElement('canvas');
+    pCanvas.width = 32 * 4;
+    pCanvas.height = 32 * 4;
+    const pCtx = pCanvas.getContext('2d');
+
+    for(let row = 0; row < 4; row++) {
+        for(let col = 0; col < 4; col++) {
+            let cx = col * 32;
+            let cy = row * 32;
+            let hover = (col === 1 || col === 3) ? -2 : 0;
+            let wingFlap = (col === 1 || col === 3) ? 1 : 0; 
+
+            pCtx.fillStyle = 'rgba(0,0,0,0.3)';
+            pCtx.fillRect(cx + 6, cy + 26, 20, 4);
+
+            let dy = cy + 4 + hover;
+
+            pCtx.fillStyle = colors.darkRed;
+            if (row === 0 || row === 3) {
+                if (wingFlap === 0) { 
+                    pCtx.fillRect(cx + 0, dy + 2, 11, 14); 
+                    pCtx.fillRect(cx + 21, dy + 2, 11, 14);
+                } else { 
+                    pCtx.fillRect(cx + 2, dy + 6, 9, 10);
+                    pCtx.fillRect(cx + 21, dy + 6, 9, 10);
+                }
+            }
+
+            pCtx.fillStyle = colors.red;
+            pCtx.fillRect(cx + 10, dy + 8, 12, 14);
+            pCtx.fillStyle = colors.belly;
+            pCtx.fillRect(cx + 12, dy + 10, 8, 10);
+
+            pCtx.fillStyle = colors.red;
+            pCtx.fillRect(cx + 11, dy + 2, 10, 6);
+            pCtx.fillStyle = colors.horn;
+            pCtx.fillRect(cx + 10, dy, 2, 4);
+            pCtx.fillRect(cx + 20, dy, 2, 4);
+
+            if (row !== 0) {
+                pCtx.fillStyle = colors.red;
+                if (wingFlap === 0) pCtx.fillRect(cx + 14, dy + 20, 4, 8); 
+                else pCtx.fillRect(cx + 16, dy + 20, 4, 6); 
+            }
+
+            if (row === 0) { // Down
+                pCtx.fillStyle = colors.red;
+                pCtx.fillRect(cx + 10, dy + 4, 12, 8); 
+                pCtx.fillStyle = colors.black;
+                pCtx.fillRect(cx + 13, dy + 9, 2, 2);
+                pCtx.fillRect(cx + 17, dy + 9, 2, 2);
+                pCtx.fillStyle = colors.eye;
+                pCtx.fillRect(cx + 11, dy + 5, 3, 3);
+                pCtx.fillRect(cx + 18, dy + 5, 3, 3);
+            } else if (row === 3) { // Up
+                pCtx.fillStyle = colors.darkRed;
+                pCtx.fillRect(cx + 15, dy + 4, 2, 16); 
+                pCtx.fillStyle = colors.red;
+                pCtx.fillRect(cx + 11, dy + 2, 10, 8);
+            } else if (row === 1 || row === 2) { // Side
+                pCtx.fillStyle = colors.red;
+                pCtx.fillRect(cx + 10, dy + 6, 12, 14);
+                if (row === 1) { // Left
+                    pCtx.fillRect(cx + 6, dy + 4, 8, 6);
+                    pCtx.fillStyle = colors.eye;
+                    pCtx.fillRect(cx + 10, dy + 5, 3, 3);
+                    pCtx.fillStyle = colors.darkRed;
+                    pCtx.fillRect(cx + 14, dy + 2, 12, 16);
+                } else { // Right
+                    pCtx.fillRect(cx + 18, dy + 4, 8, 6);
+                    pCtx.fillStyle = colors.eye;
+                    pCtx.fillRect(cx + 19, dy + 5, 3, 3);
+                    pCtx.fillStyle = colors.darkRed;
+                    pCtx.fillRect(cx + 6, dy + 2, 12, 16);
+                }
+            }
+            pCtx.fillStyle = colors.horn;
+            pCtx.fillRect(cx + 10, dy + 20, 3, 2);
+            pCtx.fillRect(cx + 19, dy + 20, 3, 2);
+        }
+    }
+    const img = new Image();
+    img.src = pCanvas.toDataURL();
+    return img;
+}
+
+function generateGrassPattern() {
+    const pCanvas = document.createElement('canvas');
+    pCanvas.width = 64;
+    pCanvas.height = 64;
+    const pCtx = pCanvas.getContext('2d');
+    
+    pCtx.fillStyle = '#1a472a';
+    pCtx.fillRect(0, 0, 64, 64);
+    
+    for(let i=0; i<40; i++) {
+        pCtx.fillStyle = Math.random() > 0.5 ? '#2d5a3f' : '#143620';
+        let x = Math.random() * 64;
+        let y = Math.random() * 64;
+        let w = 2 + Math.random() * 4;
+        let h = 2 + Math.random() * 4;
+        pCtx.fillRect(x, y, w, h);
+    }
+    
+    const pattern = ctx.createPattern(pCanvas, 'repeat');
+    return pattern;
+}
+
+Object.keys(CLASS_PALETTES).forEach(key => {
+    GLOBAL_SPRITES[key] = generateWizardSprite(CLASS_PALETTES[key]);
+});
+
+GLOBAL_SPRITES.slime_green = generateSlimeSprite({ core: '#badc58', outer: '#6ab04c', shine: '#ffffff', eye: '#2d3436' });
+GLOBAL_SPRITES.slime_red = generateSlimeSprite({ core: '#ff7979', outer: '#eb4d4b', shine: '#ffffff', eye: '#2d3436' });
+GLOBAL_SPRITES.golem = generateGolemSprite({ base: '#7f8c8d', light: '#bdc3c7', dark: '#2c3e50', eyes: '#e74c3c', moss: '#2ecc71', shadow: 'rgba(0,0,0,0.3)' });
+GLOBAL_SPRITES.dragon = generateDragonSprite({ red: '#c0392b', darkRed: '#922b21', belly: '#f39c12', horn: '#ecf0f1', eye: '#f1c40f', black: '#000000' });
+
+GLOBAL_SPRITES.minion_slime = generateSlimeSprite({ core: '#a29bfe', outer: '#6c5ce7', shine: '#ffffff', eye: '#dfe6e9' });
+GLOBAL_SPRITES.minion_dragon = generateDragonSprite({ red: '#6c5ce7', darkRed: '#4834d4', belly: '#a29bfe', horn: '#dfe6e9', eye: '#00cec9', black: '#2d3436' }); 
+
+// --- ENVIRONMENT ---
+
+class Obstacle {
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type; 
+        this.radius = 20; 
+        
+        if (type === 'rock') {
+            this.color = '#57606f';
+            this.radius = 15;
+        } else {
+            this.color = '#2ecc71'; 
+            this.radius = 25;
+        }
+    }
+
+    draw(ctx) {
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.ellipse(this.x, this.y + 10, this.radius, this.radius * 0.6, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        if (this.type === 'rock') {
+            ctx.fillStyle = '#7f8c8d';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#95a5a6'; 
+            ctx.beginPath();
+            ctx.arc(this.x - 5, this.y - 5, this.radius * 0.4, 0, Math.PI*2);
+            ctx.fill();
+        } else {
+            ctx.fillStyle = '#5d4037';
+            ctx.fillRect(this.x - 5, this.y - 10, 10, 20);
+            
+            ctx.fillStyle = this.type === 'apple_tree' ? '#4caf50' : '#2e7d32';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y - 20, this.radius * 1.2, 0, Math.PI*2);
+            ctx.fill();
+            
+            if (this.type === 'apple_tree') {
+                ctx.fillStyle = '#e74c3c';
+                ctx.beginPath(); ctx.arc(this.x - 10, this.y - 25, 4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(this.x + 10, this.y - 30, 4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(this.x, this.y - 15, 4, 0, Math.PI*2); ctx.fill();
+            }
+        }
+    }
+}
+
+function initWorld() {
+    obstacles = [];
+    grassPattern = generateGrassPattern();
+    
+    for (let i = 0; i < 150; i++) { 
+        let x = Math.random() * WORLD_WIDTH;
+        let y = Math.random() * WORLD_HEIGHT;
+        
+        if (Math.hypot(x - WORLD_WIDTH/2, y - WORLD_HEIGHT/2) < 300) continue;
+        
+        let type = 'tree';
+        let r = Math.random();
+        if (r < 0.3) type = 'rock';
+        else if (r > 0.9) type = 'apple_tree';
+        
+        obstacles.push(new Obstacle(x, y, type));
+    }
+}
+
+// --- INPUT HANDLING ---
+
+window.addEventListener('resize', resizeCanvas);
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    ctx.imageSmoothingEnabled = false;
+}
+resizeCanvas();
+
+window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (e.code === 'Escape') togglePause();
+    if (e.code === 'Space' && manualSummon) triggerManualSummon();
+});
+window.addEventListener('keyup', e => keys[e.code] = false);
+window.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+});
+
+// -- MOBILE JOYSTICK --
+const joystick = {
+    active: false,
+    originX: 0,
+    originY: 0,
+    dx: 0,
+    dy: 0,
+    maxDist: 40 // visual max
+};
+
+const joystickZone = document.getElementById('joystickZone');
+const joystickKnob = document.getElementById('joystickKnob');
+
+joystickZone.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = joystickZone.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    joystick.active = true;
+    joystick.originX = centerX;
+    joystick.originY = centerY;
+    updateJoystick(touch.clientX, touch.clientY);
+}, {passive: false});
+
+joystickZone.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if(joystick.active) {
+        const touch = e.touches[0];
+        updateJoystick(touch.clientX, touch.clientY);
+    }
+}, {passive: false});
+
+joystickZone.addEventListener('touchend', e => {
+    e.preventDefault();
+    joystick.active = false;
+    joystick.dx = 0;
+    joystick.dy = 0;
+    joystickKnob.style.transform = `translate(0px, 0px)`;
+}, {passive: false});
+
+function updateJoystick(currentX, currentY) {
+    let deltaX = currentX - joystick.originX;
+    let deltaY = currentY - joystick.originY;
+    const dist = Math.sqrt(deltaX*deltaX + deltaY*deltaY);
+    const maxDist = joystick.maxDist;
+    
+    if (dist > maxDist) {
+        deltaX = (deltaX / dist) * maxDist;
+        deltaY = (deltaY / dist) * maxDist;
+    }
+    
+    joystickKnob.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+    
+    // Normalize for player input (max 1.0)
+    joystick.dx = deltaX / maxDist;
+    joystick.dy = deltaY / maxDist;
+}
+
+function selectClass(key) {
+    selectedClassKey = key;
+    document.querySelectorAll('.class-btn').forEach(btn => btn.classList.remove('selected'));
+    document.querySelector(`button[onclick="selectClass('${key}')"]`).classList.add('selected');
+}
+
+function startGame() {
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('hud').classList.remove('hidden');
+    
+    // Show Mobile Controls if detected
+    if(isMobile) {
+        document.getElementById('mobileControls').style.display = 'flex';
+        // Hide desktop buttons to save screen space
+        document.getElementById('desktopSummonBtn').classList.add('hidden');
+    } else {
+        // Show desktop specific stuff if Necro
+        if(selectedClassKey === 'necro') document.getElementById('desktopSummonBtn').classList.remove('hidden');
+    }
+
+    ctx.imageSmoothingEnabled = false;
+
+    initWorld();
+    const config = CLASSES[selectedClassKey];
+    player = new Player(config);
+    
+    enemies = [];
+    projectiles = [];
+    lootDrops = [];
+    minions = [];
+    particles = [];
+    damageNumbers = [];
+    gameTime = 0;
+    level = 1;
+    xp = 0;
+    xpToNextLevel = 100;
+    killCount = 0;
+    oracleEyeUnlocked = false; 
+    bossDefeated = false;
+    bossActive = false; 
+    manualSummon = false; 
+
+    if (selectedClassKey === 'necro') {
+        document.getElementById('minionCountDisplay').classList.remove('hidden');
+        if(isMobile) {
+             document.getElementById('btnSummon').style.display = 'flex';
+             document.getElementById('btnToggleMode').style.display = 'flex';
+        }
+        for(let i=0; i<5; i++) {
+            minions.push(new Minion(
+                player.x + (Math.random() - 0.5) * 50, 
+                player.y + (Math.random() - 0.5) * 50, 
+                player,
+                false, 
+                0,
+                'slime_minion'
+            ));
+        }
+    } else {
+        document.getElementById('minionCountDisplay').classList.add('hidden');
+        if(isMobile) {
+             document.getElementById('btnSummon').style.display = 'none';
+             document.getElementById('btnToggleMode').style.display = 'none';
+        }
+    }
+
+    gameState = 'PLAYING';
+    requestAnimationFrame(gameLoop);
+}
+
+function togglePause() {
+    if (gameState === 'PLAYING') {
+        gameState = 'PAUSED';
+        document.getElementById('pauseScreen').classList.remove('hidden');
+    } else if (gameState === 'PAUSED') {
+        gameState = 'PLAYING';
+        document.getElementById('pauseScreen').classList.add('hidden');
+        lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+    }
+}
+
+function toggleSummonMode() {
+    manualSummon = !manualSummon;
+    const btnMobile = document.getElementById('btnToggleMode');
+    const modeText = document.getElementById('modeText');
+    const hudBtnDesktop = document.getElementById('desktopSummonBtn');
+    
+    if (manualSummon) {
+        modeText.innerText = "MANUAL";
+        btnMobile.classList.add('active');
+        hudBtnDesktop.classList.remove('hidden'); // Desktop visible
+        if(isMobile) document.getElementById('btnSummon').style.opacity = '1';
+    } else {
+        modeText.innerText = "AUTO";
+        btnMobile.classList.remove('active');
+        hudBtnDesktop.classList.add('hidden'); // Desktop hide
+        triggerManualSummon();
+        if(isMobile) document.getElementById('btnSummon').style.opacity = '0.5';
+    }
+}
+
+function triggerManualSummon() {
+    if (player.pendingSummons.length === 0) return;
+    
+    while(player.pendingSummons.length > 0 && minions.length < player.commandLimit) {
+        const soul = player.pendingSummons.shift();
+        spawnMinionFromSoul(soul);
+    }
+    
+    updateSoulUI();
+}
+
+function spawnMinionFromSoul(soul) {
+    if (minions.length >= player.commandLimit) {
+        const nonBossIndex = minions.findIndex(m => !m.isBoss);
+        if (nonBossIndex !== -1) minions.splice(nonBossIndex, 1);
+        else return; 
+    }
+    
+    let type = 'slime_minion';
+    if (soul.type === 'treant') type = 'golem';
+    
+    minions.push(new Minion(soul.x, soul.y, player, soul.isBoss, soul.maxHp, type));
+}
+
+function updateSoulUI() {
+    document.getElementById('soulCount').innerText = player.pendingSummons.length;
+    document.getElementById('soulCountMobile').innerText = player.pendingSummons.length;
+}
+
+function setFormation(shape) {
+    player.formationShape = shape;
+    document.querySelectorAll('.form-btn').forEach(b => b.classList.remove('active'));
+    const btns = document.querySelectorAll('.form-btn');
+    for (let btn of btns) {
+        if(btn.getAttribute('onclick') === `setFormation('${shape}')`) {
+            btn.classList.add('active');
+        }
+    }
+}
+
+function adjustFormationSize(val) {
+    player.formationRadius = Math.max(50, Math.min(300, player.formationRadius + val));
+}
+
+function continueGame() {
+    document.getElementById('victoryScreen').classList.add('hidden');
+    gameState = 'PLAYING';
+    bossDefeated = true; 
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+}
+
+function checkObstacleCollision(entity) {
+    for(let obs of obstacles) {
+        let dist = Math.hypot(entity.x - obs.x, entity.y - obs.y);
+        let minDist = entity.size + obs.radius;
+        
+        if (dist < minDist) {
+            let angle = Math.atan2(entity.y - obs.y, entity.x - obs.x);
+            let push = minDist - dist;
+            entity.x += Math.cos(angle) * push;
+            entity.y += Math.sin(angle) * push;
+            
+            if (entity === player && obs.type === 'apple_tree' && dist < minDist + 10) {
+                lootDrops.push(new Loot(obs.x, obs.y + 30, 'health', 20));
+                obs.type = 'tree'; 
+                createEffect('hit', obs.x, obs.y);
+            }
+        }
+    }
+}
+
+// --- GAME OBJECTS ---
+
+class Player {
+    constructor(config) {
+        this.x = WORLD_WIDTH / 2;
+        this.y = WORLD_HEIGHT / 2;
+        this.classKey = selectedClassKey;
+        this.maxHp = config.hp;
+        this.hp = config.hp;
+        this.speed = config.speed;
+        this.baseColor = config.color;
+        this.size = 20; 
+        this.cooldown = 0;
+        this.maxCooldown = config.attackCooldown;
+        this.damage = config.baseDmg;
+        this.pickupRange = 100;
+        
+        this.frameX = 0;
+        this.frameY = 0; 
+        this.animTimer = 0;
+        this.isMoving = false;
+
+        this.projectileCount = 1;
+        this.pierce = 0;
+        this.areaSize = 1;
+        this.critChance = 0.05;
+        this.homing = false; 
+        this.hpRegen = 0; 
+
+        this.shieldLayers = 0;
+        this.maxShieldLayers = 2; 
+        this.shieldRegenTimer = 0;
+        this.shieldRegenMax = 480; 
+
+        this.elements = { fire: 0, ice: 0, air: 0 };
+        this.cataclysmUnlocked = false;
+
+        this.commandLimit = 10; 
+        this.minionDmgMod = 1;
+        this.minionHpMod = 1;
+        this.minionFlatHpBonus = 0; 
+        this.pendingSummons = []; 
+        this.formationShape = 'circle';
+        this.formationRadius = 100;
+
+        this.poisonTickRate = 60; 
+    }
+
+    update() {
+        let dx = 0;
+        let dy = 0;
+
+        // KEYBOARD INPUT
+        if (keys['KeyW'] || keys['ArrowUp']) dy = -1;
+        if (keys['KeyS'] || keys['ArrowDown']) dy = 1;
+        if (keys['KeyA'] || keys['ArrowLeft']) dx = -1;
+        if (keys['KeyD'] || keys['ArrowRight']) dx = 1;
+
+        // JOYSTICK OVERRIDE
+        if (joystick.active || (joystick.dx !== 0 || joystick.dy !== 0)) {
+            dx = joystick.dx;
+            dy = joystick.dy;
         }
 
-        // Optimize defaults for mobile - Reduced further for performance
-        let PARTICLE_COUNT = isMobile ? 600 : 1200; 
-        
-        let COLOR_A = {r: 0, g: 255, b: 234}; // Cyan #00ffea
-        let COLOR_B = {r: 255, g: 0, b: 85};  // Magenta #ff0055
-        const SPACE_DRAG = 0.94;
-        const BASE_SPEED = 0.5;
-        const PI2 = Math.PI * 2;
-        
-        // --- Globals ---
-        const videoElement = document.getElementsByClassName('input_video')[0];
-        const canvasElement = document.getElementById('output_canvas');
-        const canvasCtx = canvasElement.getContext('2d', { alpha: false }); 
-        const uiLayer = document.getElementById('ui-layer');
-        const introText = document.getElementById('intro-text');
-        const loadingBar = document.getElementById('loading-bar');
-        const instructionText = document.getElementById('instruction-text');
-        const handStatus = document.getElementById('h-status');
-        const pCount = document.getElementById('p-count');
-        const densityVal = document.getElementById('density-val');
-        const particleSlider = document.getElementById('particle-slider');
-        const rgbBtn = document.getElementById('rgb-btn');
-        const achievementPopup = document.getElementById('achievement-popup');
-        const achText = document.getElementById('ach-text');
-        const splashScreen = document.getElementById('splash-screen');
-        const colorAPicker = document.getElementById('color-a-picker');
-        const colorBPicker = document.getElementById('color-b-picker');
+        this.isMoving = (dx !== 0 || dy !== 0);
 
-        let particles = [];
-        let width, height;
-        let globalHue = 0;
-        let isRGBMode = false;
-        let globalScale = 1.0; // Dynamic scale factor for responsive shapes
-        
-        // Interaction State
-        let targetPosition = { x: -1000, y: -1000 };
-        let targetPosition2 = { x: -1000, y: -1000 }; 
-        let isTouchActive = false;
-        let lastTouchTime = 0;
-        let touchStartTimestamp = 0;
-        
-        // Touch Mode State
-        let currentTouchMode = 'GRAVITY';
-        let lastTapTime = 0;
-        
-        // Global Modes
-        let interactionMode = 'IDLE'; 
-        
-        // Independent Hand States 
-        let hand1State = 'GRAVITY'; 
-        let hand2State = 'GRAVITY'; 
-
-        let simulationStarted = false;
-
-        // Update Slider UI
-        particleSlider.value = PARTICLE_COUNT;
-        densityVal.innerText = PARTICLE_COUNT;
-
-        // --- IDLE ANIMATION CONTROLLER ---
-        const idleController = {
-            state: 'WAITING', // WAITING, PLAYING
-            lastActionTime: Date.now(),
-            waitDuration: 8000,
-            currentAnim: null,
-            animStartTime: 0,
-            animIndex: 0, 
+        if (this.isMoving) {
+            // If keyboard, normalize. If joystick, use vector directly
+            let mag = 1;
+            if(!joystick.active && (Math.abs(dx)===1 || Math.abs(dy)===1)) {
+                 mag = Math.sqrt(dx*dx + dy*dy);
+            }
             
-            // Animation Objects
-            blackHole: { x: 0, y: 0, vx: 0, vy: 0, active: false },
-            solarFlyby: { x: 0, y: 0, vx: 0, vy: 0, active: false },
-            cometDirection: { x: 1, y: 1 },
-            
-            // Added BIG_EYE here
-            animations: ['DNA_HELIX', 'BLACK_HOLE', 'COMET_SHOWER', 'QUESTION_MARK', 'BIG_EYE', 'SOLAR_FLYBY', 'CREDITS']
-        };
-        
-        // Achievements
-        let unlockedAchievements = {
-            balance: false,
-            galaxy: false,
-            solar: false,
-            starwars: false,
-            blackhole: false,
-            birth: false,
-            spiderfamily: false,
-            rude: false
-        };
+            this.x += (dx / mag) * this.speed;
+            this.y += (dy / mag) * this.speed;
 
-        // Gestures Timers
-        let okTimer1 = 0;
-        let okTimer2 = 0;
-        let rudeTimer1 = 0;
-        let rudeTimer2 = 0;
-        let thumbsUpTimer1 = 0;
-        let thumbsUpTimer2 = 0;
-        let swConfirmTimer = 0;
-        let dualGalaxyTimer = 0;
-        let spiderFamilyTimer = 0;
+            if (dy > 0) this.frameY = 0; 
+            else if (dy < 0) this.frameY = 3; 
+            else if (dx < 0) this.frameY = 1; 
+            else if (dx > 0) this.frameY = 2; 
 
-        // Sequence State
-        let sequenceActive = false;
-        let sequenceStartTime = 0;
-
-        // --- Helpers ---
-        function hexToRgb(hex) {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? {
-                r: parseInt(result[1], 16),
-                g: parseInt(result[2], 16),
-                b: parseInt(result[3], 16)
-            } : null;
+            this.animTimer++;
+            if (this.animTimer > ANIM_SPEED_PLAYER) {
+                this.frameX = (this.frameX + 1) % 4; 
+                this.animTimer = 0;
+            }
+        } else {
+            this.frameX = 0; 
+            this.animTimer = 0;
         }
 
-        // --- Controls & UI ---
-        particleSlider.addEventListener('input', (e) => {
-            PARTICLE_COUNT = parseInt(e.target.value);
-            densityVal.innerText = PARTICLE_COUNT;
-            initParticles(); 
+        this.x = Math.max(20, Math.min(WORLD_WIDTH - 20, this.x));
+        this.y = Math.max(20, Math.min(WORLD_HEIGHT - 20, this.y));
+        
+        checkObstacleCollision(this);
+
+        camera.x = this.x - canvas.width / 2;
+        camera.y = this.y - canvas.height / 2;
+
+        if (this.classKey === 'tank' && this.shieldLayers < this.maxShieldLayers) {
+            this.shieldRegenTimer++;
+            if (this.shieldRegenTimer >= this.shieldRegenMax) {
+                this.shieldLayers++;
+                this.shieldRegenTimer = 0;
+                createFloatingText("SHIELD UP", this.x, this.y - 30, "#0ea5e9");
+            }
+        }
+
+        if (this.hpRegen > 0 && gameTime % 60 === 0) {
+            this.heal(this.hpRegen, true); 
+        }
+
+        if (this.cooldown > 0) this.cooldown--;
+        else {
+            this.attack();
+        }
+    }
+
+    attack() {
+        if (this.classKey === 'necro' && this.formationShape === 'square') return;
+
+        let nearest = null;
+        let minDist = 600; 
+
+        for (let e of enemies) {
+            let d = Math.hypot(e.x - this.x, e.y - this.y);
+            if (d < minDist) {
+                minDist = d;
+                nearest = e;
+            }
+        }
+
+        if (nearest || this.classKey === 'tank') {
+            this.cooldown = this.maxCooldown;
+
+            if (this.classKey === 'mage' || this.classKey === 'scout' || this.classKey === 'necro') {
+                // AUTO AIM IF MOBILE OR HOMING
+                if (!nearest && !this.homing) return; 
+                
+                let targetX = nearest ? nearest.x : this.x + 100;
+                let targetY = nearest ? nearest.y : this.y;
+                
+                // If using mouse on desktop, aim there instead of nearest
+                if (!isMobile && !this.homing && !joystick.active) {
+                     // Basic check if mouse has moved
+                     if (mouseX !== 0 && mouseY !== 0) {
+                         // Convert screen mouse to world space
+                         targetX = mouseX + camera.x;
+                         targetY = mouseY + camera.y;
+                     }
+                }
+
+                for (let i = 0; i < this.projectileCount; i++) {
+                    let angle = Math.atan2(targetY - this.y, targetX - this.x);
+                    if (this.projectileCount > 1) {
+                        angle += (i - this.projectileCount/2) * 0.2;
+                    }
+
+                    projectiles.push(new Projectile(
+                        this.x, this.y, 
+                        Math.cos(angle), Math.sin(angle), 
+                        this.damage, 
+                        this.classKey, 
+                        this
+                    ));
+                }
+            } else if (this.classKey === 'tank') {
+                createEffect('shockwave', this.x, this.y, 100 * this.areaSize);
+                for (let e of enemies) {
+                    let d = Math.hypot(e.x - this.x, e.y - this.y);
+                    if (d < 100 * this.areaSize) {
+                        e.takeDamage(this.damage, 'physical');
+                        let angle = Math.atan2(e.y - this.y, e.x - this.x);
+                        e.x += Math.cos(angle) * 50;
+                        e.y += Math.sin(angle) * 50;
+                    }
+                }
+            }
+        }
+    }
+
+    takeDamage(amount) {
+        if (this.classKey === 'tank' && this.shieldLayers > 0) {
+            this.shieldLayers--;
+            this.shieldRegenTimer = 0;
+            createEffect('shieldBreak', this.x, this.y);
+            createFloatingText("BLOCKED", this.x, this.y - 20, "#fff");
+            return;
+        }
+
+        this.hp -= amount;
+        createFloatingText(`-${amount}`, this.x, this.y - 20, "#ff0000");
+        if (this.hp <= 0) {
+            endGame();
+        }
+    }
+
+    heal(amount, silent = false) {
+        this.hp = Math.min(this.hp + amount, this.maxHp);
+        if (!silent) {
+            createFloatingText(`+${amount}`, this.x, this.y - 20, "#22c55e");
+        }
+        
+        for(let i=0; i<3; i++) { 
+            particles.push({
+                type: 'heal',
+                x: this.x + (Math.random() - 0.5) * 30,
+                y: this.y + (Math.random() - 0.5) * 10,
+                dy: -1 - Math.random() * 2,
+                life: 40
+            });
+        }
+
+        if (this.classKey === 'necro') {
+            minions.forEach(m => {
+                if (m.isBoss) {
+                      m.hp = Math.min(m.hp + amount, m.maxHp);
+                      if (!silent) createFloatingText(`+${amount}`, m.x, m.y - 40, "#22c55e");
+                }
+            });
+        }
+    }
+
+    draw(ctx) {
+        let img = GLOBAL_SPRITES[this.classKey];
+        if (img) {
+             let sx = this.frameX * SPRITE_SIZE;
+             let sy = this.frameY * SPRITE_SIZE;
+             let drawSize = SPRITE_SIZE * SPRITE_SCALE;
+             
+             ctx.drawImage(
+                 img, 
+                 sx, sy, SPRITE_SIZE, SPRITE_SIZE, 
+                 this.x - drawSize/2, 
+                 this.y - drawSize/2, 
+                 drawSize, drawSize
+             );
+        } else {
+            ctx.fillStyle = this.baseColor;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        if (this.classKey === 'tank') {
+            for(let i=0; i<this.shieldLayers; i++) {
+                ctx.strokeStyle = '#0ea5e9';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size + 5 + (i*4), 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        if (this.cataclysmUnlocked) {
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size + 10, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+    }
+}
+
+class Minion {
+    constructor(x, y, owner, isBoss = false, inheritedHp = 0, type = 'slime_minion') {
+        this.x = x;
+        this.y = y;
+        this.owner = owner;
+        this.isBoss = isBoss;
+        this.type = type; 
+        this.radius = 10;
+        this.size = 10; 
+        
+        this.frameX = 0;
+        this.frameY = 0;
+        this.animTimer = 0;
+        this.markedForDeletion = false;
+        
+        if (isBoss) {
+            this.hp = 2000 * owner.minionHpMod; 
+            this.maxHp = this.hp;
+            this.damage = 100 * owner.minionDmgMod;
+            this.speed = 3.0; 
+            this.size = 32; 
+            this.radius = 30;
+            this.cooldownMax = 20;
+        } else {
+            let base = inheritedHp > 0 ? inheritedHp : 70;
+            this.hp = (base * 0.5 * owner.minionHpMod) + owner.minionFlatHpBonus; 
+            this.maxHp = this.hp;
+            this.damage = 10 * owner.minionDmgMod;
+            this.speed = 2.8; 
+            this.size = 8;
+            this.cooldownMax = 40;
+        }
+
+        this.target = null;
+        this.cooldown = 0;
+    }
+
+    takeDamage(amount) {
+        this.hp -= amount;
+        createFloatingText(Math.floor(amount), this.x, this.y - 10, '#a855f7');
+        if (this.hp <= 0) {
+            this.markedForDeletion = true;
+            if (this.isBoss && this.owner.classKey === 'necro') {
+                 this.owner.pendingSummons.push({
+                     type: 'boss',
+                     maxHp: this.maxHp, 
+                     isBoss: true,
+                     x: this.x,
+                     y: this.y
+                 });
+                 updateSoulUI();
+                 createFloatingText("SOUL SAVED", this.x, this.y, "#f59e0b");
+            }
+        }
+    }
+
+    update(index = 0, total = 1) {
+        const radius = this.owner.formationRadius; 
+        const orbitSpeed = gameTime * 0.01; 
+        
+        let formX = this.owner.x;
+        let formY = this.owner.y;
+
+        if (this.owner.formationShape === 'square') {
+            if (gameTime % 60 === 0) {
+                const healAmt = this.maxHp * 0.10;
+                this.hp = Math.min(this.hp + healAmt, this.maxHp);
+                if (this.hp < this.maxHp) {
+                    createFloatingText("+", this.x, this.y - 10, "#22c55e");
+                }
+            }
+        }
+
+        if (this.owner.formationShape === 'circle') {
+            const angle = (index / (total || 1)) * Math.PI * 2 + orbitSpeed;
+            formX += Math.cos(angle) * radius;
+            formY += Math.sin(angle) * radius;
+        } 
+        else if (this.owner.formationShape === 'square') {
+            const pos = ((index / total + (gameTime * 0.001)) % 1) * 4; 
+            if (pos < 1) { // Top
+                formX += -radius + (pos * 2 * radius);
+                formY += -radius;
+            } else if (pos < 2) { // Right
+                formX += radius;
+                formY += -radius + ((pos - 1) * 2 * radius);
+            } else if (pos < 3) { // Bottom
+                formX += radius - ((pos - 2) * 2 * radius);
+                formY += radius;
+            } else { // Left
+                formX += -radius;
+                formY += radius - ((pos - 3) * 2 * radius);
+            }
+        }
+        else if (this.owner.formationShape === 'triangle') {
+            const pos = ((index / total + (gameTime * 0.001)) % 1) * 3; 
+            const h = radius * 0.866;
+            if (pos < 1) { // Right Edge
+                formX += (pos * h);
+                formY += -radius + (pos * 1.5 * radius);
+            } else if (pos < 2) { // Bottom Edge
+                formX += h - ((pos - 1) * 2 * h);
+                formY += 0.5 * radius;
+            } else { // Left Edge
+                formX += -h + ((pos - 2) * h);
+                formY += 0.5 * radius - ((pos - 2) * 1.5 * radius);
+            }
+        }
+
+        let distToPlayer = Math.hypot(this.owner.x - this.x, this.owner.y - this.y);
+        
+        if (distToPlayer > 300) {
+            this.target = null;
+        } 
+        else if (!this.target) {
+            let minDist = 200; 
+            for (let e of enemies) {
+                let d = Math.hypot(e.x - this.x, e.y - this.y);
+                if (d < minDist) {
+                    minDist = d;
+                    this.target = e;
+                }
+            }
+        }
+
+        if (this.owner.formationShape === 'square') {
+            this.target = null;
+        }
+        if (this.owner.formationShape === 'triangle' && this.hp < this.maxHp * 0.3) {
+            this.target = null;
+        }
+
+        let moveX = 0, moveY = 0;
+
+        if (this.target) {
+            if (this.target.markedForDeletion) {
+                this.target = null;
+                return;
+            }
+
+            let angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+            moveX = Math.cos(angle) * this.speed;
+            moveY = Math.sin(angle) * this.speed;
+
+            this.x += moveX;
+            this.y += moveY;
+
+            let dToTarget = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+            let range = this.isBoss ? 40 : 20;
+
+            let dmgMod = this.owner.formationShape === 'triangle' ? 3.0 : 1.0;
+
+            if (dToTarget < range && this.cooldown <= 0) {
+                this.target.takeDamage(this.damage * dmgMod, 'minion');
+                if (this.isBoss) createEffect('shockwave', this.x, this.y, 50);
+                this.cooldown = this.cooldownMax;
+            }
+        } else {
+            let distToForm = Math.hypot(formX - this.x, formY - this.y);
+            if (distToForm > 5) {
+                let angle = Math.atan2(formY - this.y, formX - this.x);
+                moveX = Math.cos(angle) * (this.speed * 1.5);
+                moveY = Math.sin(angle) * (this.speed * 1.5);
+                this.x += moveX;
+                this.y += moveY;
+            }
+        }
+        
+        checkObstacleCollision(this);
+
+        if (moveY > 0) this.frameY = 0; 
+        else if (moveY < 0) this.frameY = 3; 
+        else if (moveX < 0) this.frameY = 1; 
+        else if (moveX > 0) this.frameY = 2; 
+
+        this.animTimer++;
+        if(this.animTimer > ANIM_SPEED_ENEMY) { 
+            this.frameX = (this.frameX + 1) % 4;
+            this.animTimer = 0;
+        }
+
+        if (this.cooldown > 0) this.cooldown--;
+    }
+
+    draw(ctx) {
+        let img = null;
+        if (this.isBoss) img = GLOBAL_SPRITES.minion_dragon;
+        else if (this.type === 'golem') img = GLOBAL_SPRITES.golem; 
+        else img = GLOBAL_SPRITES.minion_slime;
+
+        let sSize = this.isBoss ? 32 : 16;
+        let scale = SPRITE_SCALE;
+        
+        if (img) {
+             let sx = this.frameX * sSize;
+             let sy = this.frameY * sSize;
+             let drawSize = sSize * scale;
+             
+             ctx.drawImage(
+                 img, 
+                 sx, sy, sSize, sSize, 
+                 this.x - drawSize/2, 
+                 this.y - drawSize/2, 
+                 drawSize, drawSize
+             );
+        }
+        
+        if(this.hp < this.maxHp) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(this.x - 10, this.y - 30, 20, 4);
+            ctx.fillStyle = '#a855f7';
+            ctx.fillRect(this.x - 10, this.y - 30, 20 * (this.hp/this.maxHp), 4);
+        }
+    }
+}
+
+class Enemy {
+    constructor(type, x, y) {
+        if (x !== undefined && y !== undefined) {
+             this.x = x;
+             this.y = y;
+        } else {
+            if (Math.random() < 0.5) {
+                this.x = Math.random() < 0.5 ? camera.x - 50 : camera.x + canvas.width + 50;
+                this.y = camera.y + Math.random() * canvas.height;
+            } else {
+                this.x = camera.x + Math.random() * canvas.width;
+                this.y = Math.random() < 0.5 ? camera.y - 50 : camera.y + canvas.height + 50;
+            }
+        }
+
+        this.type = type;
+        this.poisonStacks = 0;
+        this.poisonTimer = 0;
+        this.dead = false; 
+        
+        this.frameX = 0;
+        this.frameY = 0;
+        this.animTimer = 0;
+        this.animSpeed = ANIM_SPEED_ENEMY; 
+        this.radius = 15;
+        this.size = 15;
+        
+        // SPEED MODIFICATION FOR MOBILE
+        // If mobile, reduce speed by 20%
+        const speedMod = isMobile ? 0.8 : 1.0;
+
+        if (type === 'wolf') {
+            this.hp = 25 + (level * 2);
+            this.maxHp = this.hp;
+            this.speed = (1.0 + (Math.random() * 0.3)) * speedMod; 
+            this.size = 12;
+            this.xp = 10;
+        } else if (type === 'spider') {
+            this.hp = 15 + (level * 1.5);
+            this.maxHp = this.hp;
+            this.speed = 0.8 * speedMod; 
+            this.size = 10;
+            this.xp = 8;
+        } else if (type === 'treant') {
+            this.hp = 60 + (level * 5);
+            this.maxHp = this.hp;
+            this.speed = 0.4 * speedMod; 
+            this.size = 18;
+            this.xp = 25;
+        } else if (type === 'boss') {
+            this.hp = 5000 + (level * 100);
+            this.maxHp = this.hp;
+            this.speed = 0.6 * speedMod; 
+            this.size = 60;
+            this.radius = 30;
+            this.xp = 1000;
+        }
+    }
+
+    update() {
+        let angle = Math.atan2(player.y - this.y, player.x - this.x);
+        let moveX = Math.cos(angle) * this.speed;
+        let moveY = Math.sin(angle) * this.speed;
+        
+        this.x += moveX;
+        this.y += moveY;
+
+        if (Math.abs(moveX) > Math.abs(moveY)) {
+            this.frameY = moveX > 0 ? 2 : 1; 
+        } else {
+            this.frameY = moveY > 0 ? 0 : 3; 
+        }
+        
+        this.animTimer++;
+        if(this.animTimer > this.animSpeed) {
+            this.frameX = (this.frameX + 1) % 4;
+            this.animTimer = 0;
+        }
+        
+        checkObstacleCollision(this);
+
+        let dist = Math.hypot(player.x - this.x, player.y - this.y);
+        if (dist < player.size + 20) { 
+            if (player.cooldown % 30 === 0) { 
+                player.takeDamage(5); 
+            }
+        }
+
+        for (let m of minions) {
+            let distM = Math.hypot(m.x - this.x, m.y - this.y);
+
+            if (player.formationShape === 'square' && !m.markedForDeletion) {
+                let minDist = m.radius + this.radius;
+                if (distM < minDist) {
+                    let angle = Math.atan2(this.y - m.y, this.x - m.x);
+                    let push = minDist - distM;
+                    this.x += Math.cos(angle) * push;
+                    this.y += Math.sin(angle) * push;
+                }
+            }
+
+            if (distM < 30) { 
+                if (gameTime % 30 === 0) {
+                    m.takeDamage(5); 
+                }
+            }
+        }
+
+        if (this.poisonStacks > 0) {
+            this.poisonTimer++;
+            let tickRate = player.classKey === 'scout' ? player.poisonTickRate : 60;
+            if (this.poisonTimer >= tickRate) {
+                let dmg = this.poisonStacks * 5;
+                this.takeDamage(dmg, 'poison');
+                this.poisonTimer = 0;
+            }
+        }
+    }
+
+    takeDamage(amount, source) {
+        this.hp -= amount;
+        
+        let color = '#fff';
+        if (source === 'poison') color = '#22c55e';
+        if (source === 'minion') color = '#a855f7';
+        
+        createFloatingText(Math.floor(amount), this.x, this.y - 20, color);
+
+        if (this.hp <= 0 && !this.dead) {
+            this.dead = true;
+            this.die();
+        }
+    }
+
+    die() {
+        killCount++;
+        
+        if (this.type === 'boss') {
+            bossActive = false; 
+        }
+
+        lootDrops.push(new Loot(this.x, this.y, 'xp', this.xp));
+        
+        if (Math.random() < 0.05 && this.type !== 'boss') {
+             lootDrops.push(new Loot(this.x + 10, this.y, 'health', 30));
+        }
+
+        if (Math.random() < 0.01 && this.type !== 'boss') {
+             lootDrops.push(new Loot(this.x - 10, this.y, 'magnet', 0));
+        }
+        
+        if (player.classKey === 'necro') {
+            let soul = { type: this.type, maxHp: this.maxHp, isBoss: this.type === 'boss', x: this.x, y: this.y };
+            
+            if (manualSummon) {
+                player.pendingSummons.push(soul);
+                updateSoulUI();
+            } else {
+                if (this.type === 'boss') {
+                    if(!victoryTriggered) {
+                        createFloatingText("BOSS RESURRECTED", this.x, this.y, "#a855f7");
+                        minions.push(new Minion(this.x, this.y, player, true));
+                        gameState = 'VICTORY';
+                        victoryTriggered = true;
+                        setTimeout(() => document.getElementById('victoryScreen').classList.remove('hidden'), 2000);
+                    }
+                }
+                else if (Math.random() < 0.4) { 
+                    spawnMinionFromSoul(soul);
+                }
+            }
+        } 
+        
+        if (this.type === 'boss' && !victoryTriggered) {
+             gameState = 'VICTORY';
+             victoryTriggered = true;
+             document.getElementById('victoryScreen').classList.remove('hidden');
+        }
+        
+        this.markedForDeletion = true;
+    }
+
+    draw(ctx) {
+        let img = null;
+        let sSize = 16;
+        
+        if (this.type === 'wolf') img = GLOBAL_SPRITES.slime_green; 
+        else if (this.type === 'spider') img = GLOBAL_SPRITES.slime_red; 
+        else if (this.type === 'treant') img = GLOBAL_SPRITES.golem; 
+        else if (this.type === 'boss') {
+            img = GLOBAL_SPRITES.dragon; 
+            sSize = 32;
+        }
+
+        if (img) {
+             let sx = this.frameX * sSize;
+             let sy = this.frameY * sSize;
+             let drawSize = sSize * SPRITE_SCALE;
+             
+             ctx.drawImage(
+                 img, 
+                 sx, sy, sSize, sSize, 
+                 this.x - drawSize/2, 
+                 this.y - drawSize/2, 
+                 drawSize, drawSize
+             );
+        } else {
+            ctx.fillStyle = '#f00';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 10, 0, Math.PI*2);
+            ctx.fill();
+        }
+        
+        if (this.poisonStacks > 0) {
+            ctx.shadowColor = '#22c55e';
+            ctx.shadowBlur = 10;
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        if (this.hp < this.maxHp) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(this.x - 10, this.y - 30, 20, 4);
+            ctx.fillStyle = '#f00';
+            ctx.fillRect(this.x - 10, this.y - 30, 20 * (this.hp / this.maxHp), 4);
+        }
+    }
+}
+
+class Projectile {
+    constructor(x, y, dx, dy, damage, type, owner) {
+        this.x = x;
+        this.y = y;
+        this.dx = dx;
+        this.dy = dy;
+        this.damage = damage;
+        this.speed = 10;
+        this.life = 60; 
+        this.type = type;
+        this.pierce = owner.pierce;
+        this.homing = owner.homing; 
+    }
+
+    update() {
+        if (this.homing) {
+            let closest = null;
+            let minDist = 400; 
+            for(let e of enemies) {
+                if(e.markedForDeletion) continue;
+                let d = Math.hypot(e.x - this.x, e.y - this.y);
+                if(d < minDist) { minDist = d; closest = e; }
+            }
+            if (closest) {
+                let angle = Math.atan2(closest.y - this.y, closest.x - this.x);
+                this.dx = Math.cos(angle);
+                this.dy = Math.sin(angle);
+            }
+        }
+
+        this.x += this.dx * this.speed;
+        this.y += this.dy * this.speed;
+        this.life--;
+
+        for (let e of enemies) {
+            if (e.markedForDeletion) continue;
+            let d = Math.hypot(e.x - this.x, e.y - this.y);
+            if (d < (e.type === 'boss' ? 50 : 25)) {
+                e.takeDamage(this.damage, 'player');
+                
+                if (this.type === 'scout') {
+                    e.poisonStacks++;
+                }
+
+                if (this.pierce > 0) {
+                    this.pierce--;
+                } else {
+                    this.markedForDeletion = true;
+                }
+                
+                createEffect('hit', this.x, this.y);
+                break; 
+            }
+        }
+
+        if (this.life <= 0) this.markedForDeletion = true;
+    }
+
+    draw(ctx) {
+        ctx.fillStyle = player.baseColor;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 4, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+class Loot {
+    constructor(x, y, type, value) {
+        this.x = x;
+        this.y = y;
+        this.type = type; 
+        this.value = value;
+        this.markedForDeletion = false;
+        this.magnetized = false;
+        
+        if (type === 'xp') { this.color = '#3b82f6'; this.size = 3; }
+        if (type === 'health') { this.color = '#ef4444'; this.size = 6; }
+        if (type === 'magnet') { this.color = '#eab308'; this.size = 6; }
+    }
+
+    update() {
+        let d = Math.hypot(player.x - this.x, player.y - this.y);
+        
+        if (this.magnetized) {
+             let angle = Math.atan2(player.y - this.y, player.x - this.x);
+             this.x += Math.cos(angle) * 20; 
+             this.y += Math.sin(angle) * 20;
+             if (d < 20) this.collect();
+             return;
+        }
+
+        if (d < 200) {
+             this.x += (player.x - this.x) * 0.01;
+             this.y += (player.y - this.y) * 0.01;
+        }
+
+        if (d < player.pickupRange) {
+            this.x += (player.x - this.x) * 0.15; 
+            this.y += (player.y - this.y) * 0.15;
+            if (d < 20) {
+                this.collect();
+            }
+        }
+    }
+
+    collect() {
+        this.markedForDeletion = true;
+        
+        if (this.type === 'xp') {
+            xp += this.value;
+            checkLevelUp();
+        } else if (this.type === 'health') {
+            player.heal(this.value);
+        } else if (this.type === 'magnet') {
+            createFloatingText("MAGNET", player.x, player.y - 40, "#eab308");
+            lootDrops.forEach(l => {
+                if (l.type === 'xp') l.magnetized = true;
+            });
+        }
+    }
+
+    draw(ctx) {
+        ctx.fillStyle = this.color;
+        
+        if (this.type === 'xp') {
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - 5);
+            ctx.lineTo(this.x + 5, this.y);
+            ctx.lineTo(this.x, this.y + 5);
+            ctx.lineTo(this.x - 5, this.y);
+            ctx.fill();
+        } else if (this.type === 'health') {
+             ctx.beginPath();
+             ctx.arc(this.x, this.y, 5, 0, Math.PI*2);
+             ctx.fill();
+             ctx.strokeStyle = '#fff';
+             ctx.lineWidth = 1;
+             ctx.stroke();
+             ctx.fillStyle = '#fff';
+             ctx.fillRect(this.x - 1, this.y - 1, 2, 2); 
+        } else if (this.type === 'magnet') {
+             ctx.beginPath();
+             ctx.arc(this.x, this.y, 6, 0, Math.PI*2);
+             ctx.fill();
+             ctx.fillStyle = '#000';
+             ctx.beginPath();
+             ctx.arc(this.x, this.y, 3, 0, Math.PI*2);
+             ctx.fill();
+        }
+    }
+}
+
+function createFloatingText(text, x, y, color) {
+    damageNumbers.push({
+        text: text,
+        x: x,
+        y: y,
+        life: 30,
+        color: color
+    });
+}
+
+function createEffect(type, x, y, radius) {
+    if (type === 'shockwave') {
+        particles.push({type: 'shockwave', x:x, y:y, r: 10, maxR: radius, life: 20});
+    } else if (type === 'hit') {
+        for(let i=0; i<3; i++) {
+            particles.push({
+                type: 'spark', 
+                x:x, y:y, 
+                dx: (Math.random()-0.5)*5, 
+                dy: (Math.random()-0.5)*5, 
+                life: 10
+            });
+        }
+    } else if (type === 'shieldBreak') {
+        particles.push({type: 'ring', x:x, y:y, r: 20, maxR: 50, life: 30, color: '#0ea5e9'});
+    }
+}
+
+// --- CORE LOOPS ---
+
+function checkLevelUp() {
+    if (xp >= xpToNextLevel) {
+        level++;
+        xp -= xpToNextLevel;
+        xpToNextLevel = Math.floor(xpToNextLevel * 1.2);
+        triggerLevelUp();
+    }
+}
+
+function gameLoop(timestamp) {
+    if (gameState !== 'PLAYING') return;
+    
+    const deltaTime = timestamp - lastTime;
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.translate(-camera.x, -camera.y);
+    
+    if (grassPattern) {
+        ctx.fillStyle = grassPattern;
+        ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
+    } else {
+        ctx.fillStyle = '#1a472a'; 
+        ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
+    }
+    
+    ctx.strokeStyle = '#2d5a3f';
+    ctx.lineWidth = 5;
+    ctx.strokeRect(0,0, WORLD_WIDTH, WORLD_HEIGHT);
+
+    obstacles.forEach(obs => obs.draw(ctx));
+
+    player.update();
+    player.draw(ctx);
+
+    minions.forEach((m, i) => { 
+        if(m.markedForDeletion) minions.splice(i, 1);
+        else { m.update(i, minions.length); m.draw(ctx); }
+    });
+
+    enemies.forEach((e, index) => {
+        if (e.markedForDeletion) enemies.splice(index, 1);
+        else {
+            e.update();
+            e.draw(ctx);
+        }
+    });
+
+    projectiles.forEach((p, index) => {
+        if (p.markedForDeletion) projectiles.splice(index, 1);
+        else {
+            p.update();
+            p.draw(ctx);
+        }
+    });
+
+    lootDrops.forEach((l, index) => {
+        if (l.markedForDeletion) lootDrops.splice(index, 1);
+        else {
+            l.update();
+            l.draw(ctx);
+        }
+    });
+
+    particles.forEach((p, i) => {
+        p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+        else {
+            if (p.type === 'shockwave') {
+                p.r += (p.maxR - p.r) * 0.2;
+                ctx.strokeStyle = `rgba(255,255,255,${p.life/20})`;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.stroke();
+            } else if (p.type === 'spark') {
+                p.x += p.dx; p.y += p.dy;
+                ctx.fillStyle = `rgba(255,200,0,${p.life/10})`;
+                ctx.fillRect(p.x, p.y, 2, 2);
+            } else if (p.type === 'ring') {
+                p.r += 2;
+                ctx.strokeStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.stroke();
+            } else if (p.type === 'heal') {
+                p.y += p.dy;
+                ctx.fillStyle = `rgba(34, 197, 94, ${p.life/40})`;
+                ctx.fillRect(p.x, p.y, 3, 3);
+            }
+        }
+    });
+
+    damageNumbers.forEach((d, i) => {
+        d.y -= 0.5;
+        d.life--;
+        if (d.life <= 0) damageNumbers.splice(i, 1);
+        else {
+            ctx.fillStyle = d.color;
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText(d.text, d.x, d.y);
+        }
+    });
+
+    ctx.restore();
+
+    spawnTimer++;
+    let spawnRate = Math.max(30, 240 - (gameTime / 60)); 
+    
+    if (spawnTimer > spawnRate) {
+        spawnEnemyWave(); 
+        spawnTimer = 0;
+    }
+
+    gameTime++;
+    updateHUD();
+
+    if (!bossDefeated && !bossActive) {
+        if (gameTime === 10800) { 
+            spawnBoss();
+        }
+        if (level % 10 === 0 && level > lastBossLevel) {
+            spawnBoss();
+            lastBossLevel = level;
+        }
+    }
+
+    lastTime = timestamp;
+    requestAnimationFrame(gameLoop);
+}
+
+function spawnBoss() {
+    enemies.push(new Enemy('boss'));
+    bossActive = true;
+    createFloatingText("BOSS INCOMING", player.x, player.y - 50, "#ff0000");
+}
+
+function spawnEnemyWave() {
+    let cap = bossActive ? 40 : 300; 
+    if (enemies.length > cap) return;
+
+    const r = Math.random();
+    let type = 'wolf';
+    if (r < 0.3) type = 'treant';
+    else if (r < 0.6) type = 'spider';
+
+    let spawnX, spawnY;
+    if (Math.random() < 0.5) {
+        spawnX = Math.random() < 0.5 ? camera.x - 100 : camera.x + canvas.width + 100;
+        spawnY = camera.y + Math.random() * canvas.height;
+    } else {
+        spawnX = camera.x + Math.random() * canvas.width;
+        spawnY = Math.random() < 0.5 ? camera.y - 100 : camera.y + canvas.height + 100;
+    }
+
+    let clusterSize = bossActive ? 1 : (3 + Math.floor(gameTime / 3600)); 
+    
+    for(let i=0; i<clusterSize; i++) {
+        let offsetX = (Math.random() - 0.5) * 60;
+        let offsetY = (Math.random() - 0.5) * 60;
+        enemies.push(new Enemy(type, spawnX + offsetX, spawnY + offsetY));
+    }
+}
+
+function updateHUD() {
+    const hpPct = (player.hp / player.maxHp) * 100;
+    document.getElementById('hpBar').style.width = `${Math.max(0, hpPct)}%`;
+    
+    const xpPct = (xp / xpToNextLevel) * 100;
+    document.getElementById('xpBar').style.width = `${xpPct}%`;
+    
+    document.getElementById('lvlDisplay').innerText = `LVL ${level}`;
+    document.getElementById('killCount').innerText = killCount;
+
+    let seconds = Math.floor(gameTime / 60);
+    let minutes = Math.floor(seconds / 60);
+    seconds = seconds % 60;
+    document.getElementById('timerDisplay').innerText = 
+        `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
+
+    if (player.classKey === 'tank') {
+        const container = document.getElementById('shieldContainer');
+        container.innerHTML = '';
+        for(let i=0; i<player.shieldLayers; i++) {
+            container.innerHTML += `<div class="shield-pip"></div>`;
+        }
+    }
+
+    if (player.classKey === 'necro') {
+        document.getElementById('minionCountDisplay').innerText = `Thralls: ${minions.length}/${player.commandLimit}`;
+        if(minions.length >= 20) {
+            document.getElementById('formationControls').classList.remove('hidden');
+        } else {
+            document.getElementById('formationControls').classList.add('hidden');
+            if (player.formationShape !== 'circle') setFormation('circle');
+        }
+    }
+}
+
+// --- CARD SYSTEM & LEVEL UP ---
+
+const UPGRADES = [
+    { id: 'dmg', name: "Sharpen Blade", type: 'stat', stat: 'damage', val: 5, rarity: 'common', desc: "+5 Damage" },
+    { id: 'spd', name: "Wind Walk", type: 'stat', stat: 'speed', val: 0.5, rarity: 'common', desc: "+0.5 Move Speed" },
+    { id: 'hp', name: "Vitality", type: 'stat', stat: 'maxHp', val: 20, rarity: 'common', desc: "+20 Max Health" },
+    { id: 'regen', name: "Troll Blood", type: 'stat', stat: 'hp', val: 10, rarity: 'common', desc: "Instant +10 HP Heal" }, 
+    { id: 'magnet', name: "Loot Magnet", type: 'stat', stat: 'pickupRange', val: 30, rarity: 'common', desc: "+30 Pickup Range" }, 
+    { id: 'luck', name: "Clover", type: 'stat', stat: 'critChance', val: 0.05, rarity: 'rare', desc: "+5% Crit Chance" }, 
+
+    { id: 'cdr', name: "Quick Hands", type: 'stat', stat: 'maxCooldown', val: -5, rarity: 'rare', desc: "-5 Frames Attack Cooldown" },
+    { id: 'pierce', name: "Drill Tip", type: 'stat', stat: 'pierce', val: 1, rarity: 'epic', desc: "+1 Projectile Pierce" },
+    { id: 'proj', name: "Multishot", type: 'stat', stat: 'projectileCount', val: 1, rarity: 'legendary', desc: "+1 Projectile" },
+    
+    { id: 'regen_common', name: "Troll Blood", type: 'stat', stat: 'hpRegen', val: 1, rarity: 'common', desc: "+1 HP/sec Regen" },
+    { id: 'regen_rare', name: "Vampiric Aura", type: 'stat', stat: 'hpRegen', val: 2, rarity: 'rare', desc: "+2 HP/sec Regen" },
+    { id: 'regen_epic', name: "Fountain of Life", type: 'stat', stat: 'hpRegen', val: 4, rarity: 'epic', desc: "+4 HP/sec Regen" },
+    { id: 'regen_legendary', name: "Phoenix Heart", type: 'stat', stat: 'hpRegen', val: 8, rarity: 'legendary', desc: "+8 HP/sec Regen" },
+
+    { id: 'oracle', name: "Oracle's Eye", type: 'special', rarity: 'legendary', desc: "Unlocks the 5th Card Slot (Fate)" },
+    { id: 'homing', name: "Soul Seeker", type: 'special', rarity: 'legendary', desc: "Projectiles home in on enemies" }, 
+
+    { id: 'fire', class: 'mage', name: "Fire Attunement", type: 'element', element: 'fire', rarity: 'common', desc: "Add Fire DMG. Collect 3 for Ult." },
+    { id: 'ice', class: 'mage', name: "Ice Attunement", type: 'element', element: 'ice', rarity: 'common', desc: "Add Slow. Collect 3 for Ult." },
+    { id: 'shield_max', class: 'tank', name: "Fortress", type: 'stat', stat: 'maxShieldLayers', val: 1, rarity: 'legendary', desc: "+1 Max Shield Layer" },
+    { id: 'poison_tick', class: 'scout', name: "Neurotoxin", type: 'special', rarity: 'epic', desc: "Poison deals damage faster" },
+    
+    { id: 'army_cap_common', class: 'necro', name: "Undead", type: 'stat', stat: 'commandLimit', val: 5, rarity: 'common', desc: "+5 Max Minions" },
+    { id: 'army_cap_rare', class: 'necro', name: "Legion", type: 'stat', stat: 'commandLimit', val: 15, rarity: 'rare', desc: "+15 Max Minions" },
+    { id: 'army_cap_epic', class: 'necro', name: "Commander", type: 'stat', stat: 'commandLimit', val: 30, rarity: 'epic', desc: "+30 Max Minions" },
+    { id: 'army_cap_legendary', class: 'necro', name: "Undead Horde", type: 'stat', stat: 'commandLimit', val: 50, rarity: 'legendary', desc: "+50 Max Minions" },
+    { id: 'minion_dmg_common', class: 'necro', name: "Dark Power", type: 'stat', stat: 'minionDmgMod', val: 0.5, rarity: 'common', desc: "+5 Minion Damage" }, 
+    { id: 'minion_dmg_rare', class: 'necro', name: "Unholy Strength", type: 'stat', stat: 'minionDmgMod', val: 1.0, rarity: 'rare', desc: "+10 Minion Damage" },
+    { id: 'minion_hp_common', class: 'necro', name: "Thick Bones", type: 'stat', stat: 'minionFlatHpBonus', val: 5, rarity: 'common', desc: "+5 Minion HP" },
+    { id: 'minion_hp_rare', class: 'necro', name: "Grave Dirt", type: 'stat', stat: 'minionFlatHpBonus', val: 10, rarity: 'rare', desc: "+10 Minion HP" },
+    { id: 'minion_hp_epic', class: 'necro', name: "Obsidian Armor", type: 'stat', stat: 'minionFlatHpBonus', val: 15, rarity: 'epic', desc: "+15 Minion HP" },
+    { id: 'minion_hp_legendary', class: 'necro', name: "Immortal Soul", type: 'stat', stat: 'minionFlatHpBonus', val: 20, rarity: 'legendary', desc: "+20 Minion HP" },
+];
+
+function triggerLevelUp() {
+    gameState = 'LEVEL_UP';
+    document.getElementById('levelUpScreen').classList.remove('hidden');
+    generateCards();
+}
+
+function generateCards() {
+    const container = document.getElementById('cardsContainer');
+    container.innerHTML = '';
+
+    const cardCount = oracleEyeUnlocked ? 5 : 4;
+    const selectedIds = new Set(); 
+
+    const handRoll = Math.random();
+    let tierLevel = 0; 
+    if (handRoll > 0.9) tierLevel = 2; 
+    else if (handRoll > 0.6) tierLevel = 1; 
+
+    for (let i = 0; i < cardCount; i++) {
+        let isFateSlot = (i === 4);
+        let rarity = 'common';
+        
+        let r = Math.random();
+        if (tierLevel === 2) {
+            rarity = r < 0.3 ? 'legendary' : 'epic';
+        } else if (tierLevel === 1) {
+            rarity = r < 0.3 ? 'epic' : 'rare';
+        } else {
+            rarity = r < 0.2 ? 'rare' : 'common';
+        }
+        
+        if (isFateSlot) {
+            if (r < 0.2) rarity = 'legendary';
+            else if (r < 0.6) rarity = 'epic';
+            else rarity = 'rare';
+        }
+
+        let validCards = UPGRADES.filter(c => {
+            if (c.class && c.class !== player.classKey) return false; 
+            if (c.id === 'oracle' && oracleEyeUnlocked) return false; 
+            if (c.id === 'homing' && player.homing) return false; 
+            if (selectedIds.has(c.id)) return false; 
+            return c.rarity === rarity;
         });
 
-        // RGB Button Logic (Short Press: Toggle, Long Press: Credits)
-        let rgbTimer = null;
-        let longPressTriggered = false;
-
-        function handleRgbDown(e) {
-            longPressTriggered = false;
-            rgbTimer = setTimeout(() => {
-                longPressTriggered = true;
-                // Trigger Credits Animation
-                idleController.currentAnim = 'CREDITS';
-                idleController.animStartTime = Date.now();
-                idleController.state = 'PLAYING';
-                interactionMode = 'PLAYING_ANIMATION';
-                handStatus.innerText = "CREDITS SEQUENCE";
-                
-                // Visual Feedback on button
-                rgbBtn.style.backgroundColor = "#fff";
-                setTimeout(() => rgbBtn.style.backgroundColor = "", 200);
-            }, 1000); // 1 second hold
-        }
-
-        function handleRgbUp(e) {
-            if (rgbTimer) {
-                clearTimeout(rgbTimer);
-                rgbTimer = null;
-            }
-        }
-
-        function handleRgbClick(e) {
-            if (longPressTriggered) return; // Skip toggle if long press triggered
-            isRGBMode = !isRGBMode;
-            rgbBtn.classList.toggle('active');
-        }
-
-        // Add listeners for both mouse and touch to ensure consistent behavior
-        rgbBtn.addEventListener('mousedown', handleRgbDown);
-        rgbBtn.addEventListener('touchstart', handleRgbDown, {passive: true});
-        
-        rgbBtn.addEventListener('mouseup', handleRgbUp);
-        rgbBtn.addEventListener('touchend', handleRgbUp);
-        rgbBtn.addEventListener('mouseleave', handleRgbUp);
-        
-        rgbBtn.addEventListener('click', handleRgbClick);
-
-        colorAPicker.addEventListener('input', (e) => {
-            const rgb = hexToRgb(e.target.value);
-            if (rgb) COLOR_A = rgb;
-        });
-
-        colorBPicker.addEventListener('input', (e) => {
-            const rgb = hexToRgb(e.target.value);
-            if (rgb) COLOR_B = rgb;
-        });
-
-        function triggerAchievement(type) {
-            if (unlockedAchievements[type]) return;
-            unlockedAchievements[type] = true;
-            
-            let text = "";
-            if (type === 'balance') text = "PERFECT BALANCE";
-            if (type === 'galaxy') text = "GALACTIC WORMHOLE STABILIZED";
-            if (type === 'solar') text = "GALAXY IN PALM";
-            if (type === 'starwars') text = "FORCE IS STRONG";
-            if (type === 'blackhole') text = "EVENT HORIZON";
-            if (type === 'spiderfamily') text = "SPIDER FAMILY UNLOCKED";
-            if (type === 'rude') text = "HAH YOU REALLY THOUGHT OF IT DIDN'T YOU";
-            
-            achText.innerText = text;
-            achievementPopup.classList.add('visible');
-            
-            setTimeout(() => {
-                achievementPopup.classList.remove('visible');
-            }, 4000);
-        }
-
-        // --- Solar System Configuration ---
-        const SOLAR_SYSTEM = [
-            { name: 'Sun', r: 0, s: 0, size: 25, color: '#FDB813' }, 
-            { name: 'Mercury', r: 55, s: 4.0, size: 4, color: '#A5A5A5' },
-            { name: 'Venus', r: 85, s: 2.5, size: 7, color: '#E3BB76' },
-            { name: 'Earth', r: 125, s: 1.5, size: 7, color: '#22A6B3', moons: [{r: 15, s: 5, c: '#DDD', size: 2}] },
-            { name: 'Mars', r: 165, s: 1.0, size: 5, color: '#FF4500', moons: [{r: 10, s: 6, c: '#AAA', size: 1.5}, {r: 14, s: 4, c: '#999', size: 1.5}] },
-            { name: 'Jupiter', r: 240, s: 0.5, size: 18, color: '#D9A066', moons: [{r: 28, s: 3, c: '#CCC', size: 2}, {r: 35, s: 2, c: '#FFF', size: 2}, {r: 42, s: 1.5, c: '#EEE', size: 1.5}] },
-            { name: 'Saturn', r: 330, s: 0.3, size: 15, color: '#F4D03F', ring: {min: 22, max: 40, c: '#C0A060'} },
-            { name: 'Uranus', r: 410, s: 0.2, size: 10, color: '#40E0D0' },
-            { name: 'Neptune', r: 470, s: 0.15, size: 10, color: '#4169E1' }
-        ];
-
-        // --- Geometric Functions ---
-        
-        function getDNAPoint(t, width, height, time) {
-            // Split t into two strands: 0-0.5 is strand A, 0.5-1.0 is strand B
-            const strand = t < 0.5 ? 0 : 1;
-            // Normalize t for the strand (0 to 1)
-            const localT = (t * 2) % 1; 
-            
-            // Calculate Helix Logic
-            // Make it vertical
-            const rowY = height * 0.1 + (localT * height * 0.8);
-            
-            // Rotation angle based on Y position + Time
-            const angle = (localT * Math.PI * 6) + time; // 3 Full twists
-            const radius = 120 * globalScale;
-            
-            // Offset second strand by PI
-            const effectiveAngle = angle + (strand * Math.PI);
-            
-            const x = (width / 2) + Math.cos(effectiveAngle) * radius;
-            const z = Math.sin(effectiveAngle) * 40; // Depth effect
-            
-            let color;
-            if (strand === 0) color = `rgb(${COLOR_A.r},${COLOR_A.g},${COLOR_A.b})`; // Color A
-            else color = `rgb(${COLOR_B.r},${COLOR_B.g},${COLOR_B.b})`; // Color B
-            
-            return { x, y: rowY, z, color };
-        }
-
-        // NEW BIG EYE ANIMATION LOGIC
-        function getBigEyePoint(t, width, height, elapsed) {
-            const cx = width / 2;
-            const cy = height / 2;
-            const scale = 220 * globalScale; 
-            
-            // Gaze Logic: 
-            // 0-3s: Center to Left
-            // 3-7s: Left to Right
-            // 7-9s: Right to Center
-            // 9s+: Center + Red Contact
-            
-            let gazeX = 0;
-            let isRed = false;
-            const maxGaze = scale * 0.6;
-            
-            if (elapsed < 3000) {
-               const p = elapsed / 3000;
-               gazeX = -maxGaze * p;
-            } else if (elapsed < 7000) {
-               const p = (elapsed - 3000) / 4000;
-               gazeX = -maxGaze + (maxGaze * 2 * p);
-            } else if (elapsed < 9000) {
-               const p = (elapsed - 7000) / 2000;
-               gazeX = maxGaze - (maxGaze * p);
-            } else {
-               gazeX = 0;
-               isRed = true;
-            }
-            
-            // Jitter gaze slightly for realism
-            if(elapsed < 9000) gazeX += (Math.random()-0.5)*5;
-
-            let x, y, color;
-            
-            // T mapping
-            // 0.0 - 0.45: Eyelids (Color A)
-            // 0.45 - 0.85: Iris (Color B -> Red)
-            // 0.85 - 1.0: Pupil (Black)
-            
-            if (t < 0.45) {
-                // Eyelids (Color A)
-                const lt = t / 0.45; 
-                let angle;
-                if (lt < 0.5) {
-                    const ltt = lt / 0.5; 
-                    angle = Math.PI + (ltt * 2 * Math.PI); // Top arc
-                } else {
-                    const ltt = (lt - 0.5) / 0.5; 
-                    angle = ltt * 2 * Math.PI; // Bottom arc
-                }
-                
-                // Elliptical shape for eye
-                x = cx + Math.cos(angle) * scale;
-                y = cy + Math.sin(angle) * (scale * 0.6); 
-                
-                if (typeof COLOR_A !== 'undefined') color = `rgb(${COLOR_A.r},${COLOR_A.g},${COLOR_A.b})`;
-                else color = '#00ffea';
-
-            } else if (t < 0.85) {
-                // Iris
-                const rMax = scale * 0.4;
-                const r = rMax * Math.sqrt(Math.random());
-                const theta = Math.random() * PI2;
-                
-                x = cx + gazeX + r * Math.cos(theta);
-                y = cy + r * Math.sin(theta);
-                
-                if (isRed) {
-                    color = '#FF0000';
-                } else {
-                    if (typeof COLOR_B !== 'undefined') color = `rgb(${COLOR_B.r},${COLOR_B.g},${COLOR_B.b})`;
-                    else color = '#ff0055';
-                }
-                
-            } else {
-                // Pupil (Black)
-                const rMax = scale * 0.15;
-                const r = rMax * Math.sqrt(Math.random());
-                const theta = Math.random() * PI2;
-                
-                x = cx + gazeX + r * Math.cos(theta);
-                y = cy + r * Math.sin(theta);
-                color = '#000000';
-            }
-            
-            return {x, y, color};
-        }
-
-        function getHeartPoint(t, scale) {
-            const adjustedScale = scale * globalScale;
-            const x = 16 * Math.pow(Math.sin(t), 3);
-            const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
-            return { x: x * adjustedScale, y: y * adjustedScale };
-        }
-
-        function getQuestionMarkPoint(t, scale, cx, cy) {
-            const s = scale * globalScale;
-            let x = 0, y = 0;
-            
-            if (t < 0.5) {
-                const nt = t / 0.5;
-                const angle = -Math.PI + (nt * 1.5 * Math.PI); 
-                const radius = s * 10;
-                x = cx + Math.cos(angle) * radius;
-                y = (cy - s * 10) + Math.sin(angle) * radius;
-                if(nt > 0.8) x -= (nt-0.8)*20*globalScale;
-            } else if (t < 0.7) {
-                const nt = (t - 0.5) / 0.2;
-                x = cx;
-                y = cy + (nt * s * 10);
-            } else if (t < 0.8) {
-                const nt = (t - 0.7) / 0.1;
-                const angle = nt * Math.PI * 4;
-                x = cx + Math.cos(angle) * 5 * globalScale;
-                y = cy + s * 15 + Math.sin(angle) * 5 * globalScale;
-            } else {
-                const nt = (t - 0.8) / 0.2;
-                x = (cx - s * 8) + (nt * s * 16);
-                y = cy + s * 25;
-            }
-            return {x, y};
-        }
-
-        function getCreditsPoint(t, width, height) {
-            const text = "MADE BY DEEPANSHU";
-            const charIdx = Math.floor(t * text.length);
-            const lt = (t * text.length) % 1;
-            const char = text[charIdx];
-            
-            // Dynamic font sizing to prevent cutoff
-            // Use the smaller of: standard responsive size OR size constrained by text length
-            const standardSize = width * 0.04;
-            const constrainedSize = (width * 0.9) / (text.length * 1.2); // Ensure text fits in 90% of width
-            const fontSize = Math.min(standardSize, constrainedSize);
-            
-            const spacing = fontSize * 1.2;
-            const startX = (width - (text.length * spacing)) / 2;
-            const cy = height / 2;
-            const cx = startX + charIdx * spacing + fontSize / 2;
-            
-            let dx = 0, dy = 0;
-            const s = fontSize / 2;
-
-            switch(char) {
-                case 'M':
-                    if(lt<0.25) { dx=-s; dy=s-lt/0.25*2*s; }
-                    else if(lt<0.5) { dx=-s+(lt-0.25)/0.25*s; dy=-s+(lt-0.25)/0.25*s; }
-                    else if(lt<0.75) { dx=(lt-0.5)/0.25*s; dy=(lt-0.5)/0.25*-s; }
-                    else { dx=s; dy=-s+(lt-0.75)/0.25*2*s; }
-                    break;
-                case 'A':
-                    if(lt<0.4) { dx=-s+lt/0.4*s; dy=s-lt/0.4*2*s; }
-                    else if(lt<0.8) { dx=(lt-0.4)/0.4*s; dy=-s+(lt-0.4)/0.4*2*s; }
-                    else { dx=-s/2+(lt-0.8)/0.2*s; dy=0; }
-                    break;
-                case 'D':
-                    if(lt<0.3) { dx=-s; dy=-s+lt/0.3*2*s; }
-                    else { const a=-Math.PI/2+(lt-0.3)/0.7*Math.PI; dx=-s+Math.cos(a)*2*s; dy=Math.sin(a)*s; }
-                    break;
-                case 'E':
-                    if(lt<0.4) { dx=s; dy=-s; if(lt>0.1) { dx=s-(lt-0.1)/0.3*2*s; } if(lt>0.3) { dx=-s; dy=-s+(lt-0.3)/0.1*2*s; } }
-                    else if(lt<0.6) { dx=-s+(lt-0.4)/0.2*2*s; dy=s; }
-                    else if(lt<0.8) { dx=-s+(lt-0.6)/0.2*1.5*s; dy=0; }
-                    else { dx=-s; dy=-s+(lt-0.8)/0.2*2*s; }
-                    break;
-                case 'B':
-                    if(lt<0.2) { dx=-s; dy=-s+lt/0.2*2*s; }
-                    else if(lt<0.6) { const a=-Math.PI/2+(lt-0.2)/0.4*Math.PI; dx=-s+Math.cos(a)*s; dy=-s/2+Math.sin(a)*s/2; }
-                    else { const a=-Math.PI/2+(lt-0.6)/0.4*Math.PI; dx=-s+Math.cos(a)*s; dy=s/2+Math.sin(a)*s/2; }
-                    break;
-                case 'Y':
-                    if(lt<0.33) { dx=-s+lt/0.33*s; dy=-s+lt/0.33*s; }
-                    else if(lt<0.66) { dx=s-(lt-0.33)/0.33*s; dy=-s+(lt-0.33)/0.33*s; }
-                    else { dx=0; dy=(lt-0.66)/0.34*s; }
-                    break;
-                case 'P':
-                    if(lt<0.4) { dx=-s; dy=s-lt/0.4*2*s; }
-                    else { const a=-Math.PI/2+(lt-0.4)/0.6*Math.PI; dx=-s+Math.cos(a)*s; dy=-s/2+Math.sin(a)*s/2; }
-                    break;
-                case 'N':
-                    if(lt<0.33) { dx=-s; dy=s-lt/0.33*2*s; }
-                    else if(lt<0.66) { dx=-s+(lt-0.33)/0.33*2*s; dy=-s+(lt-0.33)/0.33*2*s; }
-                    else { dx=s; dy=-s+(lt-0.66)/0.34*2*s; }
-                    break;
-                case 'S':
-                    const a = lt * Math.PI * 3; dx = Math.cos(a)*s; dy = -s + lt*2*s;
-                    break;
-                case 'H':
-                    if(lt<0.33) { dx=-s; dy=-s+lt/0.33*2*s; }
-                    else if(lt<0.66) { dx=s; dy=-s+(lt-0.33)/0.33*2*s; }
-                    else { dx=-s+(lt-0.66)/0.34*2*s; dy=0; }
-                    break;
-                case 'U':
-                    if(lt<0.3) { dx=-s; dy=-s+lt/0.3*s; }
-                    else if(lt<0.7) { const an=Math.PI-(lt-0.3)/0.4*Math.PI; dx=Math.cos(an)*s; dy=Math.sin(an)*s; }
-                    else { dx=s; dy=s-(lt-0.7)/0.3*2*s; }
-                    break;
-                default: dx=0; dy=0; break;
-            }
-            
-            return {x: cx + dx, y: cy + dy};
-        }
-
-        function getRudeGesturePoint(t, scale) {
-            const s = scale * globalScale;
-            let x, y;
-            
-            // Draw Outline: Fist box + Straight middle finger
-            if (t < 0.25) { // Middle finger (Straight Up)
-                const lt = t / 0.25; 
-                // Outline: Up left, Over top, Down right
-                if (lt < 0.4) { x = -1.2; y = - (lt/0.4)*18; }
-                else if (lt < 0.6) { x = -1.2 + ((lt-0.4)/0.2)*2.4; y = -18; }
-                else { x = 1.2; y = -18 + ((lt-0.6)/0.4)*18; }
-            } else { // Fist (Curled fingers)
-                const lt = (t - 0.25) / 0.75;
-                // Boxy shape for fist
-                // Index knuckle top
-                if (lt < 0.15) { x = 1.2 + (lt/0.15)*3.8; y = 0; }
-                // Side right
-                else if (lt < 0.35) { x = 5.0; y = ((lt-0.15)/0.2)*12; }
-                // Bottom
-                else if (lt < 0.65) { x = 5.0 - ((lt-0.35)/0.3)*10; y = 12; }
-                // Side left
-                else if (lt < 0.85) { x = -5.0; y = 12 - ((lt-0.65)/0.2)*12; }
-                // Ring/Pinky knuckle top
-                else { x = -5.0 + ((lt-0.85)/0.15)*3.8; y = 0; }
-            }
-            
-            return {x: x*s, y: y*s};
-        }
-
-        function getThumbsUpPoint(t, scale) {
-            const s = scale * globalScale;
-            let x, y;
-            
-            // Draw Outline: Fist + Thumb Up
-            if (t < 0.25) { // Thumb
-                const lt = t / 0.25;
-                // Thumb shape sticking out left-ish top
-                if (lt < 0.4) { x = -4 + (lt/0.4)*1; y = -5 - (lt/0.4)*8; } // Up angled
-                else if (lt < 0.6) { x = -3 + ((lt-0.4)/0.2)*3; y = -13; } // Top
-                else { x = 0; y = -13 + ((lt-0.6)/0.4)*13; } // Down to knuckles
-            } else { // Fist
-                const lt = (t - 0.25) / 0.75;
-                // Knuckles top (Index to Pinky)
-                if (lt < 0.25) { x = 0 + (lt/0.25)*5; y = 0; }
-                // Right side
-                else if (lt < 0.45) { x = 5; y = ((lt-0.25)/0.2)*12; }
-                // Bottom
-                else if (lt < 0.75) { x = 5 - ((lt-0.45)/0.3)*10; y = 12; }
-                // Left side
-                else { x = -5; y = 12 - ((lt-0.75)/0.25)*17; } // Back up to thumb start
-            }
-            return {x: x*s, y: y*s};
-        }
-
-        function getPeaceHandPoint(t, scale) {
-            const s = scale * globalScale;
-            let x, y;
-            if (t < 0.5) { 
-                const angle = (t / 0.5) * PI2;
-                x = Math.cos(angle) * 7;
-                y = Math.sin(angle) * 7 + 6; 
-            } else if (t < 0.75) { 
-                const lt = (t - 0.5) / 0.25;
-                x = -2.5 + (-2 * lt); 
-                y = 0 - (15 * lt);    
-            } else { 
-                const lt = (t - 0.75) / 0.25;
-                x = 2.5 + (2 * lt);    
-                y = 0 - (15 * lt);    
-            }
-            return {x: x * s, y: y * s};
-        }
-
-        function getHandShapePoint(t, scale) {
-            const s = scale * globalScale;
-            const angle = t * PI2;
-            let x, y;
-            const r = 8 + 6 * Math.cos(5 * angle - Math.PI/2);
-            x = r * Math.cos(angle - Math.PI/2);
-            y = r * Math.sin(angle - Math.PI/2) + 5;
-            return {x: x * s * 0.8, y: y * s * 0.8};
-        }
-
-        function getSpiderPoint(t, scale) {
-            const s = scale * globalScale;
-            let x, y;
-            if (t < 0.2) { 
-                const angle = (t / 0.2) * PI2;
-                x = Math.cos(angle) * 3;
-                y = Math.sin(angle) * 3 - 6;
-            } else if (t < 0.4) {
-                const angle = ((t - 0.2) / 0.2) * PI2;
-                x = Math.cos(angle) * 5;
-                y = Math.sin(angle) * 6 + 4;
-            } else {
-                const legT = (t - 0.4) / 0.6; 
-                const legNum = Math.floor(legT * 8); 
-                const legProgress = (legT * 8) % 1; 
-                const side = legNum < 4 ? -1 : 1;
-                const vert = (legNum % 4) - 1.5; 
-                const startX = side * 4;
-                const startY = vert * 2 + 3;
-                const extX = side * 16;
-                const extY = vert * 8 - (Math.abs(side) * 8); 
-                x = startX + (extX - startX) * legProgress;
-                y = startY + (extY - startY) * legProgress;
-                if(legProgress > 0.5) y += (legNum % 4 < 2) ? -2 : 2; 
-            }
-            return {x: x * s, y: y * s};
-        }
-
-        function getStarWarsTextPoint(t, width, height) {
-            const letter = Math.floor(t * 8);
-            const lt = (t * 8) % 1;
-            const cx = width / 2;
-            const cy = height / 2;
-            const s = width * 0.05 * (isMobile ? 1.5 : 1.0); // Larger text on mobile
-            const rowY = (letter < 4) ? cy - s * 1.5 : cy + s * 1.5;
-            const colX = cx + ((letter % 4) - 1.5) * (s * 2.5);
-            let dx = 0, dy = 0;
-            // Simplified vector logic for letter forms
-            if (letter === 0 || letter === 7) { 
-                const angle = lt * Math.PI * 2.5; 
-                dx = Math.cos(angle) * s * 0.5; dy = Math.sin(angle) * s * 0.8;
-                if(lt < 0.5) { dx += s*0.2; dy -= s*0.5; } else { dx -= s*0.2; dy += s*0.5; }
-            } else if (letter === 1) { 
-                if (lt < 0.3) { dx = (lt/0.3 - 0.5)*2*s; dy = -s; } else { dx = 0; dy = -s + ((lt-0.3)/0.7)*2*s; } 
-            } else if (letter === 2 || letter === 5) { 
-                if (lt < 0.4) { dx = -s*0.5 + (lt/0.4)*s*0.5; dy = s - (lt/0.4)*2*s; } 
-                else if (lt < 0.8) { dx = (lt-0.4)/0.4*s*0.5; dy = -s + ((lt-0.4)/0.4)*2*s; } 
-                else { dx = -s*0.3 + ((lt-0.8)/0.2)*s*0.6; dy = 0; } 
-            } else if (letter === 3 || letter === 6) { 
-                if(lt < 0.25) { dx = -s*0.5; dy = -s + (lt/0.25)*2*s; } 
-                else if(lt < 0.75) { const a = -Math.PI/2 + ((lt-0.25)/0.5)*Math.PI; dx = -s*0.5 + Math.cos(a)*s*0.8; dy = -s*0.5 + Math.sin(a)*s*0.5; } 
-                else { dx = -s*0.2 + ((lt-0.75)/0.25)*s*0.7; dy = ((lt-0.75)/0.25)*s; }
-            } else if (letter === 4) { 
-               if(lt<0.25) { dx = -s*0.8 + lt/0.25*s*0.4; dy = -s + lt/0.25*2*s; }
-               else if(lt<0.5) { dx = -s*0.4 + (lt-0.25)/0.25*s*0.4; dy = s - (lt-0.25)/0.25*s; }
-               else if(lt<0.75) { dx = (lt-0.5)/0.25*s*0.4; dy = (lt-0.5)/0.25*s; }
-               else { dx = s*0.4 + (lt-0.75)/0.25*s*0.4; dy = s - (lt-0.75)/0.25*2*s; }
-            }
-            return {x: colX + dx, y: rowY + dy};
-        }
-
-        function getCockpitPoint(t, width, height) {
-            let x, y, color = '#00FF00';
-            // Scale points based on screen size
-            const w = width;
-            const h = height;
-            
-            if (t < 0.2) {
-                const angle = Math.PI + (t/0.2) * Math.PI;
-                x = Math.cos(angle) * w * 0.5; y = h * 0.3 + Math.sin(angle) * h * 0.2;
-            } else if (t < 0.4) {
-                const lt = (t - 0.2) / 0.2; const angle = Math.PI + (lt * Math.PI);
-                x = Math.cos(angle) * w * 0.6; y = -h * 0.2 + Math.sin(angle) * h * 0.4;
-            } else if (t < 0.5) {
-                const lt = (t - 0.4) / 0.1; x = 0; y = -h * 0.6 + lt * h * 0.8; 
-            } else if (t < 0.7) {
-                const lt = (t - 0.5) / 0.2;
-                const size = 200 * globalScale;
-                if(lt < 0.5) { const angle = lt * 2 * PI2; x = Math.cos(angle) * (60*globalScale); y = Math.sin(angle) * (60*globalScale); } 
-                else { const ltt = (lt - 0.5) * 2; if(ltt < 0.5) { x = (ltt - 0.25)*size; y = 0; } else { x = 0; y = (ltt - 0.75)*size; } }
-                color = '#FF5500'; 
-            } else if (t < 0.9) {
-                const lt = (t - 0.7) / 0.2;
-                const span = 100 * globalScale;
-                const depth = 200 * globalScale;
-                if (lt < 0.5) { x = -w * 0.3 - lt * span; y = -h * 0.3 + lt * depth; } 
-                else { x = w * 0.3 + (lt-0.5) * span; y = -h * 0.3 + (lt-0.5) * depth; }
-            } else {
-                const lt = (t - 0.9) / 0.1; x = (lt - 0.5) * w * 0.4; y = h * 0.4 + Math.sin(lt * 20) * 20;
-                color = (Math.random() > 0.5) ? '#FF0000' : '#0000FF';
-            }
-            return {x, y, color};
-        }
-
-        function getSolarSystemPoint(particle, centerTime, scale, cx=0, cy=0) {
-            const totalPlanets = SOLAR_SYSTEM.length;
-            const planetIdx = Math.floor(particle.tParamLinear * totalPlanets);
-            const p = SOLAR_SYSTEM[planetIdx] || SOLAR_SYSTEM[0];
-            
-            let x, y, color;
-            const T = centerTime;
-
-            const angle = T * p.s + particle.tParam * 5; 
-            
-            // Adjust radius and sizes by globalScale
-            const rAdj = p.r * globalScale;
-            const sizeAdj = p.size * globalScale;
-            
-            const px = rAdj * Math.cos(angle);
-            const py = rAdj * Math.sin(angle);
-
-            if (planetIdx === 0) {
-                const r = Math.random() * sizeAdj;
-                const theta = Math.random() * PI2;
-                x = px + r * Math.cos(theta);
-                y = py + r * Math.sin(theta);
-                color = p.color;
-            } else {
-                const featureSeed = (particle.tParamLinear * totalPlanets) % 1; 
-
-                if (p.ring && featureSeed > 0.7) {
-                    const rMin = p.ring.min * globalScale;
-                    const rMax = p.ring.max * globalScale;
-                    const ringR = rMin + Math.random() * (rMax - rMin);
-                    const ringAngle = particle.tParam * 20; 
-                    x = px + ringR * Math.cos(ringAngle);
-                    y = py + (ringR * 0.4) * Math.sin(ringAngle); 
-                    color = p.ring.c;
-                } else if (p.moons && p.moons.length > 0 && featureSeed > 0.8) {
-                    const mIdx = Math.floor(featureSeed * 10) % p.moons.length;
-                    const m = p.moons[mIdx];
-                    const mAngle = T * m.s + particle.tParam * 10;
-                    const mR = m.r * globalScale;
-                    x = px + mR * Math.cos(mAngle);
-                    y = py + mR * Math.sin(mAngle);
-                    color = m.c;
-                } else {
-                    const r = Math.random() * (sizeAdj * 0.8);
-                    const theta = Math.random() * PI2;
-                    x = px + r * Math.cos(theta);
-                    y = py + r * Math.sin(theta);
-                    color = p.color;
-                }
-            }
-
-            return { x: cx + x * scale, y: cy + y * scale, color: color };
-        }
-
-        // --- Particle Class ---
-        class Particle {
-            constructor() {
-                this.init();
-                this.tParam = Math.random() * PI2; 
-                this.tParamLinear = Math.random(); 
-                this.z = 0; 
-                this.customColor = null; 
-            }
-
-            init(x, y) {
-                this.x = x || Math.random() * width;
-                this.y = y || Math.random() * height;
-                this.vx = (Math.random() - 0.5) * BASE_SPEED;
-                this.vy = (Math.random() - 0.5) * BASE_SPEED;
-                this.isColorA = Math.random() > 0.5;
-                this.baseSize = (Math.random() * 2 + 1) * (isMobile ? 1.5 : 1.0); // Bigger on mobile
-                this.size = this.baseSize;
-                this.z = 0;
-                this.customColor = null;
-            }
-
-            // STAR WARS SEQUENCE
-            applySequence(timeElapsed) {
-                const cx = width / 2;
-                const cy = height / 2;
-                this.customColor = null; 
-
-                // 0. STATIC TITLE (0s - 5s)
-                if (timeElapsed < 5.0) {
-                    this.customColor = '#FFE81F'; 
-                    const pt = getStarWarsTextPoint(this.tParamLinear, width, height);
-                    const dx = pt.x - this.x;
-                    const dy = pt.y - this.y;
-                    this.vx += dx * 0.1;
-                    this.vy += dy * 0.1;
-                }
-                // 1. SABER DRAW (5.0s - 12.0s)
-                else if (timeElapsed < 12.0) {
-                    const progress = (timeElapsed - 5.0) / 7.0; 
-                    const saberHeight = height * 0.6 * progress;
-                    const startY = height * 0.9;
-                    if (this.isColorA) {
-                        this.customColor = '#0088FF';
-                        const startX = width * 0.35; 
-                        const targetX = startX + (Math.random()-0.5)*10;
-                        const targetY = startY - (this.tParamLinear * saberHeight);
-                        const dx = targetX - this.x; const dy = targetY - this.y;
-                        this.vx += dx * 0.05; this.vy += dy * 0.05;
-                    } else {
-                        this.customColor = '#FF0000';
-                        const startX = width * 0.65;
-                        const targetX = startX + (Math.random()-0.5)*10;
-                        const targetY = startY - (this.tParamLinear * saberHeight);
-                        const dx = targetX - this.x; const dy = targetY - this.y;
-                        this.vx += dx * 0.05; this.vy += dy * 0.05;
-                    }
-                }
-                // 2. CROSS (12.0s - 16.0s)
-                else if (timeElapsed < 16.0) {
-                    const progress = (timeElapsed - 12.0) / 4.0;
-                    this.customColor = (this.isColorA ? '#0088FF' : '#FF0000');
-                    const startY = height * 0.8; const saberLen = height * 0.6;
-                    let tx, ty;
-                    if (this.isColorA) {
-                        const angle = -Math.PI/2 + (Math.PI/4 * progress); 
-                        const len = this.tParamLinear * saberLen;
-                        const baseX = width * 0.35 + (width*0.15 * progress); 
-                        tx = baseX + Math.cos(angle) * len; ty = startY + Math.sin(angle) * len;
-                    } else {
-                        const angle = -Math.PI/2 - (Math.PI/4 * progress); 
-                        const len = this.tParamLinear * saberLen;
-                        const baseX = width * 0.65 - (width*0.15 * progress);
-                        tx = baseX + Math.cos(angle) * len; ty = startY + Math.sin(angle) * len;
-                    }
-                    const dx = tx - this.x; const dy = ty - this.y;
-                    this.vx += dx * 0.1; this.vy += dy * 0.1;
-                }
-                // 3. CLASH (16.0s - 20.0s)
-                else if (timeElapsed < 20.0) {
-                    this.customColor = (Math.random() > 0.7) ? '#FFFFFF' : (this.isColorA ? '#0088FF' : '#FF0000');
-                    const dx = cx - this.x; const dy = cy - this.y;
-                    this.vx += dx * 0.5; this.vy += dy * 0.5;
-                    this.vx += (Math.random() - 0.5) * 50; this.vy += (Math.random() - 0.5) * 50;
-                }
-                // 4. BURST (20.0s - 22.0s)
-                else if (timeElapsed < 22.0) {
-                    const progress = (timeElapsed - 20.0) / 2.0;
-                    if (progress < 0.1) {
-                        const angle = Math.atan2(this.y - cy, this.x - cx);
-                        const force = 60 + Math.random() * 60; 
-                        this.vx = Math.cos(angle) * force;
-                        this.vy = Math.sin(angle) * force;
-                    }
-                    this.customColor = (Math.random() > 0.5) ? '#FF4400' : '#FFFF00';
-                }
-                // 5. COCKPIT (22.0s - 30.0s)
-                else if (timeElapsed < 30.0) {
-                    const pt = getCockpitPoint(this.tParamLinear, width, height);
-                    this.customColor = pt.color || '#00FF00';
-                    const tx = cx + pt.x; const ty = cy + pt.y;
-                    const dx = tx - this.x; const dy = ty - this.y;
-                    this.vx += dx * 0.05; this.vy += dy * 0.05;
-                    this.x += (Math.random() - 0.5) * 2; this.y += (Math.random() - 0.5) * 2;
-                }
-            }
-
-            applyHandEffect(tx, ty, state) {
-                this.customColor = null; 
-                
-                // Scale forces for mobile
-                const forceMult = isMobile ? 1.5 : 1.0; 
-
-                if (state === 'GRAVITY') {
-                    const dx = this.x - tx;
-                    const dy = this.y - ty;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    const angle = Math.atan2(dy, dx);
-                    const range = 400 * globalScale;
-                    if (dist < range && dist > 20) {
-                        const force = (range - dist) / (350 * globalScale);
-                        this.vx -= Math.cos(angle) * force * 2 * forceMult; 
-                        this.vy -= Math.sin(angle) * force * 2 * forceMult;
-                    }
-                    return false;
-
-                } else if (state === 'REPULSOR') {
-                    const dx = this.x - tx;
-                    const dy = this.y - ty;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    const angle = Math.atan2(dy, dx);
-                    const range = 500 * globalScale;
-                    if (dist < range) {
-                        const force = ((range + 100) - dist) / 10;
-                        this.vx += Math.cos(angle) * force * 0.8 * forceMult;
-                        this.vy += Math.sin(angle) * force * 0.8 * forceMult;
-                    }
-                    return false;
-
-                } else if (state === 'SINGULARITY') {
-                    const dx = this.x - tx;
-                    const dy = this.y - ty;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    const angle = Math.atan2(dy, dx);
-                    if (dist > 30) {
-                        const force = 1.8 * forceMult;
-                        this.vx -= Math.cos(angle) * force; 
-                        this.vy -= Math.sin(angle) * force;
-                        const rotForce = 0.9 * forceMult;
-                        this.vx += Math.cos(angle + Math.PI/2) * rotForce;
-                        this.vy += Math.sin(angle + Math.PI/2) * rotForce;
-                    }
-                    return false;
-
-                } else if (state === 'PEACE') {
-                    const scale = 12;
-                    const pt = getPeaceHandPoint(this.tParamLinear, scale);
-                    const destX = tx + pt.x;
-                    const destY = ty + pt.y;
-                    const dx = destX - this.x;
-                    const dy = destY - this.y;
-                    this.vx += dx * 0.04;
-                    this.vy += dy * 0.04;
-                    this.vx += (Math.random() - 0.5) * 0.5;
-                    this.vy += (Math.random() - 0.5) * 0.5;
-                    return true;
-
-                } else if (state === 'SPIDER') {
-                    const scale = 10;
-                    const pt = getSpiderPoint(this.tParamLinear, scale);
-                    const destX = tx + pt.x;
-                    const destY = ty + pt.y;
-                    const dx = destX - this.x;
-                    const dy = destY - this.y;
-                    this.vx += dx * 0.05;
-                    this.vy += dy * 0.05;
-                    return true;
-
-                } else if (state === 'THUMBS_UP') {
-                    const scale = 12;
-                    const pt = getThumbsUpPoint(this.tParamLinear, scale);
-                    const destX = tx + pt.x;
-                    const destY = ty + pt.y;
-                    const dx = destX - this.x;
-                    const dy = destY - this.y;
-                    this.vx += dx * 0.06;
-                    this.vy += dy * 0.06;
-                    return true;
-
-                } else if (state === 'RUDE_GESTURE') {
-                    const scale = 12;
-                    const pt = getRudeGesturePoint(this.tParamLinear, scale);
-                    const destX = tx + pt.x;
-                    const destY = ty + pt.y;
-                    const dx = destX - this.x;
-                    const dy = destY - this.y;
-                    this.vx += dx * 0.06;
-                    this.vy += dy * 0.06;
-                    return true;
-
-                } else if (state === 'OK_SIGN') {
-                    triggerAchievement('solar');
-                    const time = Date.now() / 1000;
-                    const pt = getSolarSystemPoint(this, time, 1);
-                    const destX = tx + pt.x;
-                    const destY = ty + pt.y;
-                    const dx = destX - this.x;
-                    const dy = destY - this.y;
-                    
-                    this.vx += dx * 0.05;
-                    this.vy += dy * 0.05;
-                    this.customColor = pt.color;
-                    return true;
-                }
+        if (validCards.length === 0) {
+            validCards = UPGRADES.filter(c => {
+                if (c.class && c.class !== player.classKey) return false;
+                if (selectedIds.has(c.id)) return false;
+                if (rarity === 'legendary') return c.rarity === 'epic';
+                if (rarity === 'epic') return c.rarity === 'rare' || c.rarity === 'legendary';
+                if (rarity === 'rare') return c.rarity === 'common' || c.rarity === 'epic';
+                if (rarity === 'common') return c.rarity === 'rare';
                 return false;
-            }
-
-            update() {
-                this.customColor = null; 
-                this.vx *= SPACE_DRAG;
-                this.vy *= SPACE_DRAG;
-                
-                const maxSpeed = 30;
-                const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
-                if (speed > maxSpeed) {
-                    this.vx = (this.vx / speed) * maxSpeed;
-                    this.vy = (this.vy / speed) * maxSpeed;
-                }
-
-                this.x += this.vx;
-                this.y += this.vy;
-                
-                let in3DMode = false;
-
-                if (sequenceActive) {
-                    const timeElapsed = (Date.now() - sequenceStartTime) / 1000;
-                    if (timeElapsed > 30.0) { 
-                        sequenceActive = false; 
-                    } else {
-                        this.applySequence(timeElapsed);
-                    }
-                    return; 
-                }
-
-                // --- IDLE ANIMATIONS LOGIC ---
-                if (interactionMode === 'PLAYING_ANIMATION') {
-                    const animTime = (Date.now() - idleController.animStartTime) / 1000;
-
-                    if (idleController.currentAnim === 'DNA_HELIX') {
-                        // NEW LOGIC FOR DNA HELIX
-                        in3DMode = true; // Enable z-scaling
-                        const pt = getDNAPoint(this.tParamLinear, width, height, animTime);
-                        const dx = pt.x - this.x;
-                        const dy = pt.y - this.y;
-                        
-                        this.vx += dx * 0.08;
-                        this.vy += dy * 0.08;
-                        this.z = pt.z;
-                        this.customColor = pt.color;
-                    }
-                    // BIG EYE PARTICLE UPDATE
-                    else if (idleController.currentAnim === 'BIG_EYE') {
-                        const elapsed = Date.now() - idleController.animStartTime;
-                        const pt = getBigEyePoint(this.tParamLinear, width, height, elapsed);
-                        const dx = pt.x - this.x;
-                        const dy = pt.y - this.y;
-                        
-                        this.vx += dx * 0.15;
-                        this.vy += dy * 0.15;
-                        this.customColor = pt.color;
-                    }
-                    else if (idleController.currentAnim === 'BLACK_HOLE') {
-                        // Physics: Gravity Well that moves
-                        const bh = idleController.blackHole;
-                        const dx = bh.x - this.x;
-                        const dy = bh.y - this.y;
-                        const distSq = dx*dx + dy*dy;
-                        const dist = Math.sqrt(distSq);
-                        const angle = Math.atan2(dy, dx);
-                        
-                        // Slightly weaker gravity than before, but wider reach
-                        const gForce = 1500 / (distSq + 2000); 
-                        this.vx += Math.cos(angle) * gForce;
-                        this.vy += Math.sin(angle) * gForce;
-                        
-                        if (dist < 40) {
-                            // Event Horizon Sucking Effect
-                            this.vx += (Math.random()-0.5) * 15;
-                            this.vy += (Math.random()-0.5) * 15;
-                            this.customColor = '#000000'; // Disappear into void
-                        }
-                    } 
-                    else if (idleController.currentAnim === 'COMET_SHOWER') {
-                        // High velocity diagonal movement
-                        const dir = idleController.cometDirection;
-                        const targetVx = dir.x * 20;
-                        const targetVy = dir.y * 20;
-                        // Particles accelerate towards this velocity
-                        this.vx += (targetVx - this.vx) * 0.1;
-                        this.vy += (targetVy - this.vy) * 0.1;
-                        
-                        // Add some sparkle
-                        if(Math.random() > 0.9) this.customColor = '#FFFFFF';
-                        
-                        // Wrap around logic specific to comets
-                        if(this.x > width + 50) this.x = -50;
-                        if(this.x < -50) this.x = width + 50;
-                        if(this.y > height + 50) this.y = -50;
-                        if(this.y < -50) this.y = height + 50;
-                    }
-                    else if (idleController.currentAnim === 'QUESTION_MARK') {
-                        const scale = 15;
-                        const cx = width / 2;
-                        const cy = height / 2 - 50;
-                        const pt = getQuestionMarkPoint(this.tParamLinear, scale, cx, cy);
-                        const dx = pt.x - this.x;
-                        const dy = pt.y - this.y;
-                        
-                        // Gentle lerp
-                        this.vx += dx * 0.05;
-                        this.vy += dy * 0.05;
-                        this.customColor = '#00FFEA';
-                    }
-                    else if (idleController.currentAnim === 'SOLAR_FLYBY') {
-                        const sf = idleController.solarFlyby;
-                        // Use existing solar system point generator, but offset by moving center
-                        const pt = getSolarSystemPoint(this, Date.now()/1000, 1, sf.x, sf.y);
-                        const dx = pt.x - this.x;
-                        const dy = pt.y - this.y;
-                        this.vx += dx * 0.08;
-                        this.vy += dy * 0.08;
-                        this.customColor = pt.color;
-                    }
-                    else if (idleController.currentAnim === 'CREDITS') {
-                        const elapsed = Date.now() - idleController.animStartTime;
-                        if (elapsed < 8000) {
-                            const pt = getCreditsPoint(this.tParamLinear, width, height);
-                            const dx = pt.x - this.x;
-                            const dy = pt.y - this.y;
-                            this.vx += dx * 0.1;
-                            this.vy += dy * 0.1;
-                            // White/Grey Gradient
-                            const val = 150 + Math.floor(Math.random() * 105);
-                            this.customColor = `rgb(${val}, ${val}, ${val})`;
-                        } else {
-                            // Explosion into stars
-                            const cx = width / 2;
-                            const cy = height / 2;
-                            const dx = this.x - cx;
-                            const dy = this.y - cy;
-                            
-                            this.vx += dx * 0.02;
-                            this.vy += dy * 0.02;
-                            this.customColor = '#FFFFFF';
-                            this.vx += (Math.random() - 0.5) * 2;
-                            this.vy += (Math.random() - 0.5) * 2;
-                        }
-                    }
-                    
-                    if(!in3DMode && idleController.currentAnim !== 'DNA_HELIX') this.z = 0;
-                    return;
-                }
-
-                if (interactionMode === 'TWO_BLACK_HOLE') {
-                    triggerAchievement('blackhole');
-                    const cx = (targetPosition.x + targetPosition2.x) / 2;
-                    const cy = (targetPosition.y + targetPosition2.y) / 2;
-                    
-                    const dx = cx - this.x;
-                    const dy = cy - this.y;
-                    const distSq = dx*dx + dy*dy;
-                    const dist = Math.sqrt(distSq);
-                    const angle = Math.atan2(dy, dx);
-
-                    // Strong Gravity
-                    const gForce = 1500 / (distSq + 100); 
-                    this.vx += Math.cos(angle) * gForce;
-                    this.vy += Math.sin(angle) * gForce;
-
-                    // Rotation (Swirl)
-                    const rotForce = 50 / (dist + 10);
-                    this.vx += Math.cos(angle + Math.PI/2) * rotForce;
-                    this.vy += Math.sin(angle + Math.PI/2) * rotForce;
-
-                    // Event Horizon / Jets
-                    if (dist < 20) {
-                        // Shoot out as Jet
-                        const jetAngle = (Math.random() < 0.5 ? -Math.PI/2 : Math.PI/2) + (Math.random()-0.5)*0.5;
-                        const jetSpeed = 20 + Math.random() * 20;
-                        this.vx = Math.cos(jetAngle) * jetSpeed;
-                        this.vy = Math.sin(jetAngle) * jetSpeed;
-                        this.x = cx + this.vx; 
-                        this.y = cy + this.vy;
-                    }
-
-                    // "Holy Black and White" Colors
-                    const brightness = Math.min(100, 255 - (dist / 3)); 
-                    this.customColor = `hsl(0, 0%, ${brightness}%)`;
-                    return;
-                }
-
-                if (interactionMode === 'TWO_WORMHOLE') {
-                    in3DMode = true;
-                    triggerAchievement('galaxy');
-
-                    const cx = (targetPosition.x + targetPosition2.x) / 2;
-                    const cy = (targetPosition.y + targetPosition2.y) / 2;
-                    
-                    const axisX = targetPosition2.x - targetPosition.x;
-                    const axisY = targetPosition2.y - targetPosition.y;
-                    const distHands = Math.sqrt(axisX*axisX + axisY*axisY) || 100;
-                    const angleHands = Math.atan2(axisY, axisX);
-
-                    this.tParam += 0.03;
-                    const a = distHands / 2; 
-                    const denom = 1 + Math.pow(Math.sin(this.tParam), 2);
-                    let lx = a * Math.cos(this.tParam) / denom;
-                    let ly = (a * 1.5) * Math.sin(this.tParam) * Math.cos(this.tParam) / denom; 
-
-                    const rx = lx * Math.cos(angleHands) - ly * Math.sin(angleHands);
-                    const ry = lx * Math.sin(angleHands) + ly * Math.cos(angleHands);
-
-                    const targetX = cx + rx;
-                    const targetY = cy + ry;
-
-                    const dx = targetX - this.x;
-                    const dy = targetY - this.y;
-                    
-                    this.vx += dx * 0.1;
-                    this.vy += dy * 0.1;
-                    
-                    this.z = Math.sin(this.tParam) * 30;
-
-                } else if (interactionMode === 'TWO_HEART') {
-                    const scale = 15;
-                    const pt = getHeartPoint(this.tParam, scale);
-                    const tx = targetPosition.x + pt.x;
-                    const ty = targetPosition.y + pt.y;
-                    const dist = Math.hypot(this.x - tx, this.y - ty);
-                    const angle = Math.atan2(ty - this.y, tx - this.x);
-                    const force = dist * 0.05;
-                    this.vx += Math.cos(angle) * force;
-                    this.vy += Math.sin(angle) * force;
-                    this.tParam += 0.01;
-
-                } else if (interactionMode === 'TWO_SPIDER_FAMILY') {
-                    triggerAchievement('spiderfamily');
-                    const cx = width / 2;
-                    const cy = height / 2;
-                    
-                    // Define 4 quadrant offsets relative to center
-                    const offsetScale = 150 * globalScale;
-                    const offsets = [
-                        {x: -offsetScale, y: -offsetScale}, 
-                        {x: offsetScale, y: -offsetScale},
-                        {x: -offsetScale, y: offsetScale},  
-                        {x: offsetScale, y: offsetScale}
-                    ];
-                    
-                    // Assign each particle to one of the 4 spiders based on its linear tParam
-                    const groupIdx = Math.floor(this.tParamLinear * 4);
-                    const offset = offsets[groupIdx];
-                    
-                    // Normalize tParam for drawing a single spider (0..1)
-                    const localT = (this.tParamLinear * 4) % 1; 
-                    
-                    const scale = 8; 
-                    // Reuse existing spider geometry logic
-                    const pt = getSpiderPoint(localT, scale); 
-                    
-                    const tx = cx + offset.x + pt.x;
-                    const ty = cy + offset.y + pt.y;
-                    
-                    const dx = tx - this.x;
-                    const dy = ty - this.y;
-                    
-                    this.vx += dx * 0.08;
-                    this.vy += dy * 0.08;
-                    
-                    this.customColor = '#FF0000'; // Spiderman Red
-
-                } else if (interactionMode === 'TWO_INDEPENDENT') {
-                    if ((hand1State === 'REPULSOR' && hand2State === 'GRAVITY') || 
-                        (hand1State === 'GRAVITY' && hand2State === 'REPULSOR')) {
-                        triggerAchievement('balance');
-                    }
-
-                    const isH1Shape = ['PEACE','SPIDER','THUMBS_UP','OK_SIGN','RUDE_GESTURE'].includes(hand1State);
-                    const isH2Shape = ['PEACE','SPIDER','THUMBS_UP','OK_SIGN','RUDE_GESTURE'].includes(hand2State);
-                    const isSplitMode = isH1Shape || isH2Shape;
-
-                    if (isSplitMode) {
-                        if (this.isColorA) {
-                            if(this.applyHandEffect(targetPosition.x, targetPosition.y, hand1State)) this.z=0;
-                        } else {
-                            if(this.applyHandEffect(targetPosition2.x, targetPosition2.y, hand2State)) this.z=0;
-                        }
-                    } else {
-                        this.applyHandEffect(targetPosition.x, targetPosition.y, hand1State);
-                        this.applyHandEffect(targetPosition2.x, targetPosition2.y, hand2State);
-                    }
-
-                } else if (interactionMode === 'ONE_SIMPLE') {
-                    if(this.applyHandEffect(targetPosition.x, targetPosition.y, hand1State)) this.z=0;
-                }
-
-                if (!in3DMode) this.z = 0;
-
-                // Adjust bounds for mobile to prevent premature reset
-                const bounds = 100 * globalScale;
-                if (this.x < -bounds || this.x > width + bounds || this.y < -bounds || this.y > height + bounds) {
-                    this.init(); 
-                }
-            }
-
-            draw() {
-                const scale = (this.z + 50) / 50; 
-                const drawSize = Math.max(0.5, this.size * scale);
-                
-                let alpha = this.alpha();
-                if (interactionMode === 'TWO_WORMHOLE' || idleController.currentAnim === 'DNA_HELIX') {
-                    if (this.z < -10) alpha *= 0.4; 
-                    else if (this.z > 10) alpha = Math.min(1, alpha * 1.3);
-                }
-
-                if (this.customColor) {
-                    canvasCtx.fillStyle = this.customColor;
-                } else if (isRGBMode) {
-                    const hue = (globalHue + (this.x / width) * 100) % 360;
-                    canvasCtx.fillStyle = `hsla(${hue}, 100%, 50%, ${alpha})`;
-                } else {
-                    const c = this.isColorA ? COLOR_A : COLOR_B;
-                    canvasCtx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha})`;
-                }
-                
-                canvasCtx.fillRect(this.x, this.y, drawSize, drawSize);
-            }
-
-            alpha() {
-                const speed = Math.abs(this.vx) + Math.abs(this.vy);
-                return Math.min(0.4 + speed * 0.1, 1);
-            }
+            });
         }
 
-        const stars = [];
-        const STAR_COUNT = isMobile ? 50 : 100; // Fewer stars on mobile
+        if (validCards.length === 0) {
+            validCards = UPGRADES.filter(c => !c.class || c.class === player.classKey);
+        }
         
-        function initStars() {
-            stars.length = 0;
-            for(let i=0; i<STAR_COUNT; i++) {
-                stars.push({
-                    x: Math.random() * width,
-                    y: Math.random() * height,
-                    size: Math.random() * 1.5,
-                    alpha: Math.random(),
-                    speed: Math.random() * 2 + 0.5
-                });
-            }
+        let cardData;
+        if (validCards.length > 0) {
+            cardData = validCards[Math.floor(Math.random() * validCards.length)];
+        } else {
+            cardData = { id: `limit_break_${Math.random()}`, name: "Limit Break", type: 'stat', stat: 'damage', val: 2, rarity: 'common', desc: "+2 Damage (Overflow)" };
         }
 
-        function drawStars() {
-            const isHyper = interactionMode === 'TWO_WORMHOLE' || (sequenceActive && (Date.now()-sequenceStartTime) > 22000);
-            
-            canvasCtx.fillStyle = "white";
-            stars.forEach(star => {
-                if (isHyper) {
-                    star.x += star.speed * 20; 
-                    if(star.x > width) star.x = 0;
-                    canvasCtx.fillRect(star.x, star.y, star.size * 20, star.size); 
-                } else {
-                    // Slight parallax in normal modes
-                    star.x += star.speed * 0.1;
-                    if(star.x > width) star.x = 0;
-                    
-                    canvasCtx.globalAlpha = star.alpha * 0.5;
-                    canvasCtx.fillRect(star.x, star.y, star.size, star.size); 
-                    canvasCtx.globalAlpha = 1.0;
-                }
-            });
+        if (cardData) {
+            selectedIds.add(cardData.id);
+            createCardElement(cardData, isFateSlot, container);
         }
+    }
+}
 
-        function resize() {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvasElement.width = width;
-            canvasElement.height = height;
-            
-            // "Zoom out" effect on mobile: larger space relative to particle speed
-            // and scaling shapes down slightly so more fits.
-            // Using a base dimension of 1000px as reference.
-            globalScale = Math.min(width, height) / (isMobile ? 800 : 1000);
+function createCardElement(data, isFate, container) {
+    const el = document.createElement('div');
+    el.className = `card rarity-${data.rarity} ${isFate ? 'fate-slot' : ''}`;
+    el.innerHTML = `
+        <div class="font-bold text-${getColorForRarity(data.rarity)}-400 text-center mb-2">${data.name}</div>
+        <div class="text-xs text-gray-400 text-center flex-grow flex items-center justify-center">${data.desc}</div>
+        <div class="text-[10px] text-gray-600 text-center uppercase mt-2">${data.rarity}</div>
+    `;
+    el.onclick = () => selectUpgrade(data);
+    container.appendChild(el);
+}
+
+function getColorForRarity(r) {
+    if (r === 'common') return 'gray';
+    if (r === 'rare') return 'blue';
+    if (r === 'epic') return 'purple';
+    if (r === 'legendary') return 'yellow';
+}
+
+function selectUpgrade(data) {
+    if (data.type === 'stat') {
+        player[data.stat] += data.val;
+        if (data.stat === 'maxHp') player.hp += data.val;
+    } else if (data.type === 'special') {
+        if (data.id === 'oracle') {
+            oracleEyeUnlocked = true;
+            createFloatingText("FATE UNLOCKED", player.x, player.y - 50, "#eab308");
+        } else if (data.id === 'poison_tick') {
+            player.poisonTickRate = 30; 
+        } else if (data.id === 'homing') {
+            player.homing = true;
+            createFloatingText("HOMING ENABLED", player.x, player.y - 50, "#eab308");
         }
-
-        function initParticles() {
-            particles = [];
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                particles.push(new Particle());
-            }
-            pCount.innerText = PARTICLE_COUNT;
+    } else if (data.type === 'element') {
+        player.elements[data.element]++;
+        if (player.elements[data.element] >= 3 && !player.cataclysmUnlocked) {
+            player.cataclysmUnlocked = true;
+            createFloatingText("ULTIMATE READY", player.x, player.y - 50, "#3b82f6");
+            player.projectileCount += 5; 
         }
+    }
 
-        function updateIdleState() {
-            // If touching, don't run idle animations
-            if (isTouchActive) {
-                idleController.lastActionTime = Date.now();
-                return;
-            }
+    document.getElementById('levelUpScreen').classList.add('hidden');
+    gameState = 'PLAYING';
+    lastTime = performance.now(); 
+    requestAnimationFrame(gameLoop);
+}
 
-            if (interactionMode !== 'IDLE' && interactionMode !== 'PLAYING_ANIMATION') {
-                idleController.state = 'WAITING';
-                idleController.lastActionTime = Date.now();
-                return;
-            }
+function endGame() {
+    gameState = 'GAME_OVER';
+    let seconds = Math.floor(gameTime / 60);
+    let minutes = Math.floor(seconds / 60);
+    seconds = seconds % 60;
+    document.getElementById('deathTime').innerText = 
+        `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
+    document.getElementById('gameOverScreen').classList.remove('hidden');
+}
 
-            // Logic to transition between WAITING and PLAYING
-            if (idleController.state === 'WAITING') {
-                interactionMode = 'IDLE';
-                handStatus.innerText = "IDLE";
-                
-                if (Date.now() - idleController.lastActionTime > idleController.waitDuration) {
-                    // Sequential selection
-                    idleController.currentAnim = idleController.animations[idleController.animIndex];
-                    idleController.animIndex = (idleController.animIndex + 1) % idleController.animations.length;
-                    
-                    idleController.state = 'PLAYING';
-                    idleController.animStartTime = Date.now();
-                    interactionMode = 'PLAYING_ANIMATION';
-                    
-                    // Init Animation Specifics
-                    if (idleController.currentAnim === 'BLACK_HOLE') {
-                        const bh = idleController.blackHole;
-                        bh.active = true;
-                        // Start from random edge
-                        const side = Math.floor(Math.random() * 4);
-                        if(side===0) { bh.x = -100; bh.y = Math.random()*height; } // Left
-                        if(side===1) { bh.x = width+100; bh.y = Math.random()*height; } // Right
-                        if(side===2) { bh.x = Math.random()*width; bh.y = -100; } // Top
-                        if(side===3) { bh.x = Math.random()*width; bh.y = height+100; } // Bottom
-                        
-                        // Target center-ish opposite side
-                        const tx = width - bh.x + (Math.random()-0.5)*200;
-                        const ty = height - bh.y + (Math.random()-0.5)*200;
-                        const angle = Math.atan2(ty - bh.y, tx - bh.x);
-                        const speed = 2 + Math.random(); // Slower speed
-                        bh.vx = Math.cos(angle) * speed;
-                        bh.vy = Math.sin(angle) * speed;
-                    } 
-                    else if (idleController.currentAnim === 'COMET_SHOWER') {
-                          // Random direction
-                          const angle = Math.random() * PI2;
-                          idleController.cometDirection.x = Math.cos(angle);
-                          idleController.cometDirection.y = Math.sin(angle);
-                    }
-                    else if (idleController.currentAnim === 'SOLAR_FLYBY') {
-                        const sf = idleController.solarFlyby;
-                        sf.active = true;
-                        sf.y = height * 0.3 + Math.random() * height * 0.4;
-                        sf.x = -200;
-                        sf.vx = 3; // Slow horizontal drift
-                        sf.vy = (Math.random()-0.5) * 0.5;
-                    }
-                }
-            } else if (idleController.state === 'PLAYING') {
-                const elapsed = Date.now() - idleController.animStartTime;
-                let finished = false;
-
-                if (idleController.currentAnim === 'BLACK_HOLE') {
-                    const bh = idleController.blackHole;
-                    bh.x += bh.vx;
-                    bh.y += bh.vy;
-                    // Check bounds (with padding to allow full exit)
-                    if ((bh.x < -200 && bh.vx < 0) || (bh.x > width+200 && bh.vx > 0) || 
-                        (bh.y < -200 && bh.vy < 0) || (bh.y > height+200 && bh.vy > 0)) {
-                        finished = true;
-                    }
-                    
-                    // Draw Enhanced Black Hole (Accretion Disk)
-                    const grad = canvasCtx.createRadialGradient(bh.x, bh.y, 10, bh.x, bh.y, 60);
-                    grad.addColorStop(0, "black");
-                    grad.addColorStop(0.4, "rgba(0,0,0,1)");
-                    grad.addColorStop(0.5, "rgba(255, 100, 50, 0.8)"); // Accretion inner
-                    grad.addColorStop(0.6, "rgba(100, 0, 255, 0.2)"); // Accretion outer
-                    grad.addColorStop(1, "rgba(0,0,0,0)");
-                    
-                    canvasCtx.fillStyle = grad;
-                    canvasCtx.beginPath();
-                    canvasCtx.arc(bh.x, bh.y, 60, 0, PI2);
-                    canvasCtx.fill();
-                    
-                    // Photon Sphere Ring
-                    canvasCtx.strokeStyle = "rgba(255, 255, 255, 0.5)";
-                    canvasCtx.lineWidth = 2;
-                    canvasCtx.beginPath();
-                    canvasCtx.arc(bh.x, bh.y, 22, 0, PI2);
-                    canvasCtx.stroke();
-                } 
-                else if (idleController.currentAnim === 'COMET_SHOWER') {
-                    if (elapsed > 8000) finished = true;
-                } 
-                else if (idleController.currentAnim === 'DNA_HELIX') {
-                    // DNA needs about 12 seconds to look good looping
-                    if (elapsed > 12000) finished = true;
-                }
-                else if (idleController.currentAnim === 'BIG_EYE') {
-                    // 12 Seconds: 3s left, 4s pan, 2s center, 3s stare
-                    if (elapsed > 12000) finished = true;
-                }
-                else if (idleController.currentAnim === 'QUESTION_MARK') {
-                    if (elapsed > 7000) finished = true;
-                }
-                else if (idleController.currentAnim === 'SOLAR_FLYBY') {
-                    const sf = idleController.solarFlyby;
-                    sf.x += sf.vx;
-                    sf.y += sf.vy;
-                    if (sf.x > width + 300) finished = true;
-                }
-                else if (idleController.currentAnim === 'CREDITS') {
-                    if (elapsed > 10000) finished = true;
-                }
-
-                if (finished) {
-                    idleController.state = 'WAITING';
-                    idleController.lastActionTime = Date.now();
-                    idleController.currentAnim = null;
-                    interactionMode = 'IDLE'; 
-                    // initParticles() removed to prevent static refresh
-                }
-            }
-        }
-
-        // --- Touch Handling ---
-        function handleTouchStart(e) {
-            e.preventDefault();
-            isTouchActive = true;
-            idleController.lastActionTime = Date.now();
-            
-            const now = Date.now();
-            if (e.touches.length === 1) {
-                if (now - lastTapTime < 300) {
-                    // Double Tap detected
-                    if (currentTouchMode === 'GRAVITY') currentTouchMode = 'REPULSOR';
-                    else if (currentTouchMode === 'REPULSOR') currentTouchMode = 'PEACE';
-                    else currentTouchMode = 'GRAVITY';
-                    
-                    // Visual feedback
-                    handStatus.innerText = "MODE SWITCH: " + currentTouchMode;
-                    handStatus.style.color = "#00FFEA";
-                    setTimeout(() => handStatus.style.color = "#555", 1000);
-                }
-                lastTapTime = now;
-            }
-
-            updateTouchState(e);
-        }
-
-        function handleTouchMove(e) {
-            e.preventDefault();
-            if (isTouchActive) {
-                idleController.lastActionTime = Date.now();
-                updateTouchState(e);
-            }
-        }
-
-        function handleTouchEnd(e) {
-            e.preventDefault();
-            if (e.touches.length === 0) {
-                isTouchActive = false;
-                setTimeout(() => {
-                    if (!isTouchActive && interactionMode === 'ONE_SIMPLE') {
-                        interactionMode = 'IDLE';
-                    }
-                }, 1000);
-            } else {
-                updateTouchState(e);
-            }
-        }
-
-        function updateTouchState(e) {
-            // Calculate Centroid
-            let tx = 0, ty = 0;
-            const count = e.touches.length;
-            for(let i=0; i<count; i++) {
-                tx += e.touches[i].clientX;
-                ty += e.touches[i].clientY;
-            }
-            
-            // Set primary target to centroid
-            targetPosition.x = tx / count;
-            targetPosition.y = ty / count;
-            
-            // Sync secondary target to centroid for single-point multi-touch modes
-            // This ensures modes using (t1+t2)/2 calculations work correctly with one touch point
-            targetPosition2.x = targetPosition.x;
-            targetPosition2.y = targetPosition.y;
-
-            // Logic based on finger count
-            if (count === 1) {
-                interactionMode = 'ONE_SIMPLE';
-                hand1State = currentTouchMode;
-            } else if (count === 2) {
-                interactionMode = 'ONE_SIMPLE';
-                hand1State = 'SINGULARITY';
-                handStatus.innerText = "MULTI-TOUCH: SINGULARITY (2)";
-            } else if (count === 3) {
-                interactionMode = 'ONE_SIMPLE';
-                hand1State = 'OK_SIGN'; // Alignment / Solar
-                handStatus.innerText = "MULTI-TOUCH: ALIGNMENT (3)";
-            } else if (count === 4) {
-                interactionMode = 'TWO_HEART';
-                handStatus.innerText = "MULTI-TOUCH: HEART (4)";
-            } else if (count >= 5) {
-                interactionMode = 'TWO_BLACK_HOLE';
-                handStatus.innerText = "MULTI-TOUCH: GALACTIC CORE (5)";
-            }
-        }
-
-        function animate() {
-            const trailAlpha = interactionMode === 'TWO_WORMHOLE' ? 0.1 : 0.3; 
-            canvasCtx.fillStyle = `rgba(5, 5, 5, ${trailAlpha})`;
-            canvasCtx.fillRect(0, 0, width, height);
-
-            if (isRGBMode) globalHue = (globalHue + 5) % 360;
-
-            // --- ANIMATION STATE MACHINE UPDATE ---
-            updateIdleState();
-
-            drawStars();
-
-            if (sequenceActive) {
-                const timeElapsed = (Date.now() - sequenceStartTime) / 1000;
-                if (timeElapsed > 30.0) { 
-                    sequenceActive = false; 
-                    handStatus.innerText = "SEQUENCE COMPLETE";
-                } else {
-                    if (timeElapsed < 5.0) handStatus.innerText = "STAR WARS";
-                    else if (timeElapsed < 12.0) handStatus.innerText = ">> IGNITION <<";
-                    else if (timeElapsed < 16.0) handStatus.innerText = ">> CROSS SABERS <<";
-                    else if (timeElapsed < 20.0) handStatus.innerText = ">> CLASH <<";
-                    else if (timeElapsed < 22.0) handStatus.innerText = ">> EXPLOSION <<";
-                    else handStatus.innerText = ">> COCKPIT VIEW ONLINE <<";
-                }
-            } 
-            else if (interactionMode === 'PLAYING_ANIMATION') {
-                handStatus.innerText = "IDLE: " + idleController.currentAnim.replace('_', ' ');
-            }
-            else if (interactionMode === 'TWO_BLACK_HOLE') {
-                handStatus.innerText = ">> SINGULARITY FORMED <<";
-            }
-            else if (interactionMode === 'TWO_SPIDER_FAMILY') {
-                handStatus.innerText = ">> SPIDER FAMILY ASSEMBLED <<";
-            } else if (interactionMode !== 'IDLE') {
-                canvasCtx.lineWidth = 3;
-                
-                const drawCursor = (x, y, label, state) => {
-                    canvasCtx.beginPath();
-                    // Larger cursor for touch
-                    canvasCtx.arc(x, y, isTouchActive ? 40 : 20, 0, PI2);
-                    let color = '#00FFEA';
-                    if (state === 'REPULSOR') color = '#FF0000';
-                    else if (state === 'SPIDER') color = '#FF3333';
-                    else if (state === 'SINGULARITY') color = '#FFFF00';
-                    else if (state === 'HEART') color = '#FF00FF';
-                    else if (state === 'PEACE') color = '#00FF00';
-                    else if (state === 'WORMHOLE') color = '#FFFFFF';
-                    else if (state === 'THUMBS_UP') color = '#00FFAA';
-                    else if (state === 'OK_SIGN') color = '#FFAA00';
-                    else if (state === 'SW_CONFIRM') color = '#AA00FF';
-                    else if (state === 'ALIGNING') color = '#FFCC00';
-                    else if (state === 'RUDE_GESTURE') color = '#FF0055';
-                    else if (state === 'RUDE') color = '#FF0055';
-                    else if (state === 'THUMBS_UP_LOADING') color = '#00FFAA';
-                    
-                    canvasCtx.strokeStyle = color;
-                    canvasCtx.stroke();
-                    
-                    // Don't draw text under finger if touch active
-                    if (!isTouchActive) {
-                        canvasCtx.fillStyle = "white";
-                        canvasCtx.font = "12px monospace";
-                        canvasCtx.fillText(label, x + 25, y + 5);
-                    }
-                };
-
-                if (interactionMode === 'TWO_WORMHOLE') {
-                    const cx = (targetPosition.x + targetPosition2.x) / 2;
-                    const cy = (targetPosition.y + targetPosition2.y) / 2;
-                    canvasCtx.beginPath();
-                    canvasCtx.arc(cx, cy, 10, 0, PI2);
-                    canvasCtx.fillStyle = "#FFFFFF";
-                    canvasCtx.fill();
-                    
-                    drawCursor(targetPosition.x, targetPosition.y, "ANCHOR A", "WORMHOLE");
-                    drawCursor(targetPosition2.x, targetPosition2.y, "ANCHOR B", "WORMHOLE");
-
-                } else if (interactionMode === 'TWO_INDEPENDENT') {
-                    if (hand1State === 'SW_CONFIRM' || hand2State === 'SW_CONFIRM') {
-                        handStatus.innerText = "AWAITING CONFIRMATION...";
-                    } 
-                    if (hand1State === 'ALIGNING' && hand2State === 'ALIGNING') {
-                        handStatus.innerText = "ALIGNING...";
-                    }
-                    drawCursor(targetPosition.x, targetPosition.y, hand1State, hand1State);
-                    drawCursor(targetPosition2.x, targetPosition2.y, hand2State, hand2State);
-                } else if (interactionMode === 'ONE_SIMPLE') {
-                      drawCursor(targetPosition.x, targetPosition.y, hand1State, hand1State);
-                      
-                      if (hand1State === 'OK_SIGN') {
-                          SOLAR_SYSTEM.forEach((p, idx) => {
-                             if (idx > 0) { 
-                                 canvasCtx.beginPath();
-                                 canvasCtx.strokeStyle = `rgba(255, 255, 255, 0.15)`;
-                                 canvasCtx.lineWidth = 1;
-                                 // Scale orbit rings
-                                 canvasCtx.arc(targetPosition.x, targetPosition.y, p.r * globalScale, 0, PI2);
-                                 canvasCtx.stroke();
-                             }
-                          });
-                      } else if (hand1State === 'SW_CONFIRM') {
-                          handStatus.innerText = "AWAITING CONFIRMATION... (HOLD 2s)";
-                      } else if (hand1State === 'RUDE') {
-                          // Safe access to timer for display
-                          const timer = okTimer1 > 0 ? okTimer1 : (rudeTimer1 > 0 ? rudeTimer1 : Date.now());
-                          handStatus.innerText = "HOLDING... " + Math.max(0, Math.ceil((3000 - (Date.now() - timer))/1000));
-                      } else if (hand1State === 'THUMBS_UP_LOADING') {
-                          const timer = thumbsUpTimer1 > 0 ? thumbsUpTimer1 : Date.now();
-                          handStatus.innerText = "CHARGING PIXEL HAND... " + Math.max(0, Math.ceil((2000 - (Date.now() - timer))/1000));
-                      }
-                      
-                      if (isTouchActive && !['OK_SIGN', 'SINGULARITY'].includes(hand1State)) {
-                          handStatus.innerText = "TOUCH: " + hand1State + " (DOUBLE TAP TO SWITCH)";
-                      }
-                } else {
-                    let label = interactionMode.replace('TWO_', '');
-                    drawCursor(targetPosition.x, targetPosition.y, label, label);
-                }
-            }
-
-            particles.forEach(p => {
-                p.update();
-                p.draw();
-            });
-
-            requestAnimationFrame(animate);
-        }
-
-        function isFingerExtended(landmarks, fingerTipIdx, fingerPipIdx) {
-            const wrist = landmarks[0];
-            const tip = landmarks[fingerTipIdx];
-            const pip = landmarks[fingerPipIdx];
-            const dTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
-            const dPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
-            return dTip > dPip;
-        }
-
-        function checkCShape(landmarks) {
-            const wrist = landmarks[0];
-            const middleMCP = landmarks[9];
-            const thumbTip = landmarks[4];
-            const indexTip = landmarks[8];
-            const handScale = Math.hypot(middleMCP.x - wrist.x, middleMCP.y - wrist.y);
-            const gap = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
-            const indexDist = Math.hypot(indexTip.x - wrist.x, indexTip.y - wrist.y);
-            const isCurved = indexDist < 1.7 * handScale && indexDist > 0.8 * handScale;
-            const validGap = gap > 0.3 * handScale && gap < 1.3 * handScale;
-            return validGap && isCurved;
-        }
-
-        function checkThumbsUp(landmarks) {
-            const wrist = landmarks[0];
-            const thumbTip = landmarks[4];
-            const thumbIP = landmarks[3];
-            const thumbMCP = landmarks[2];
-            const indexMCP = landmarks[5];
-            
-            const thumbIsUp = (thumbTip.y < thumbIP.y) && (thumbTip.y < indexMCP.y);
-            const indexCurled = !isFingerExtended(landmarks, 8, 6);
-            const middleCurled = !isFingerExtended(landmarks, 12, 10);
-            const ringCurled = !isFingerExtended(landmarks, 16, 14);
-            const pinkyCurled = !isFingerExtended(landmarks, 20, 18);
-            const thumbExt = Math.hypot(thumbTip.x - thumbMCP.x, thumbTip.y - thumbMCP.y) > 30;
-
-            return thumbIsUp && thumbExt && indexCurled && middleCurled && ringCurled && pinkyCurled;
-        }
-
-        function checkThreeFingers(landmarks) {
-            const indexUp = isFingerExtended(landmarks, 8, 6);
-            const middleUp = isFingerExtended(landmarks, 12, 10);
-            const ringUp = isFingerExtended(landmarks, 16, 14);
-            
-            const pinkyDown = !isFingerExtended(landmarks, 20, 18);
-            const thumbTip = landmarks[4];
-            const thumbTucked = thumbTip.y > landmarks[5].y; 
-
-            return indexUp && middleUp && ringUp && pinkyDown && thumbTucked;
-        }
-
-        function checkOKSign(landmarks) {
-            const thumbTip = landmarks[4];
-            const indexTip = landmarks[8];
-            const middleUp = isFingerExtended(landmarks, 12, 10);
-            const ringUp = isFingerExtended(landmarks, 16, 14);
-            const pinkyUp = isFingerExtended(landmarks, 20, 18);
-            const wrist = landmarks[0];
-            
-            const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
-            const handSize = Math.hypot(landmarks[9].x - wrist.x, landmarks[9].y - wrist.y);
-            const isPinching = pinchDist < 0.3 * handSize;
-
-            return isPinching && middleUp && ringUp && pinkyUp;
-        }
-
-        function checkMiddleFinger(landmarks) {
-            const indexUp = isFingerExtended(landmarks, 8, 6);
-            const middleUp = isFingerExtended(landmarks, 12, 10);
-            const ringUp = isFingerExtended(landmarks, 16, 14);
-            const pinkyUp = isFingerExtended(landmarks, 20, 18);
-            // Thumb isn't strictly required to be down for the "gesture", but usually is.
-            return middleUp && !indexUp && !ringUp && !pinkyUp;
-        }
-
-        function getHandState(landmarks, handIdx) {
-            const indexUp = isFingerExtended(landmarks, 8, 6);
-            const middleUp = isFingerExtended(landmarks, 12, 10);
-            const ringUp = isFingerExtended(landmarks, 16, 14);
-            const pinkyUp = isFingerExtended(landmarks, 20, 18);
-            const thumbUp = isFingerExtended(landmarks, 4, 2);
-
-            if (checkThreeFingers(landmarks)) {
-                if (swConfirmTimer === 0) swConfirmTimer = Date.now();
-                else if (Date.now() - swConfirmTimer > 2000) { 
-                    if (!sequenceActive) {
-                        sequenceActive = true;
-                        sequenceStartTime = Date.now();
-                        triggerAchievement('starwars');
-                    }
-                    swConfirmTimer = 0; 
-                    return 'SW_CONFIRMED';
-                }
-                return 'SW_CONFIRM';
-            } 
-
-            if (checkThumbsUp(landmarks)) {
-                 if (handIdx === 1) {
-                     if (thumbsUpTimer1 === 0) thumbsUpTimer1 = Date.now();
-                     else if (Date.now() - thumbsUpTimer1 > 2000) {
-                         return 'THUMBS_UP';
-                     }
-                 } else {
-                     if (thumbsUpTimer2 === 0) thumbsUpTimer2 = Date.now();
-                     else if (Date.now() - thumbsUpTimer2 > 2000) {
-                         return 'THUMBS_UP';
-                     }
-                 }
-                 return 'THUMBS_UP_LOADING';
-            } else {
-                 if (handIdx === 1) thumbsUpTimer1 = 0;
-                 else thumbsUpTimer2 = 0;
-            }
-            
-            if (checkOKSign(landmarks)) {
-                return 'ALIGNING'; 
-            } else {
-                if (handIdx === 1) okTimer1 = 0;
-                else okTimer2 = 0;
-            }
-
-            if (checkMiddleFinger(landmarks)) {
-                 if (handIdx === 1) {
-                     if (rudeTimer1 === 0) rudeTimer1 = Date.now();
-                     else if (Date.now() - rudeTimer1 > 3000) {
-                         triggerAchievement('rude');
-                         return 'RUDE_GESTURE';
-                     }
-                 } else {
-                     if (rudeTimer2 === 0) rudeTimer2 = Date.now();
-                     else if (Date.now() - rudeTimer2 > 3000) {
-                         triggerAchievement('rude');
-                         return 'RUDE_GESTURE';
-                     }
-                 }
-                 return 'RUDE';
-            } else {
-                 if (handIdx === 1) rudeTimer1 = 0;
-                 else rudeTimer2 = 0;
-            }
-
-            if (checkCShape(landmarks)) return 'SINGULARITY';
-
-            if (indexUp && pinkyUp && thumbUp && !middleUp && !ringUp) return 'SPIDER';
-            if (indexUp && middleUp && !ringUp && !pinkyUp) return 'PEACE';
-            if (!indexUp && !middleUp && !ringUp && !pinkyUp) return 'REPULSOR';
-
-            return 'GRAVITY';
-        }
-
-        function checkHeartGesture(hand1, hand2) {
-            const h1Index = hand1[8];
-            const h1Thumb = hand1[4];
-            const h2Index = hand2[8];
-            const h2Thumb = hand2[4];
-            const dIndex = Math.hypot(h1Index.x - h2Index.x, h1Index.y - h2Index.y);
-            const dThumb = Math.hypot(h1Thumb.x - h2Thumb.x, h1Thumb.y - h2Thumb.y);
-            return dIndex < 0.08 && dThumb < 0.08;
-        }
-
-        function onResults(results) {
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                if (!simulationStarted) {
-                    simulationStarted = true;
-                    introText.innerText = "LINK ESTABLISHED";
-                    introText.classList.add('glitch');
-                    loadingBar.style.width = "100%";
-                    setTimeout(() => {
-                        uiLayer.style.opacity = 0;
-                        setTimeout(() => uiLayer.style.display = 'none', 1000);
-                    }, 800);
-                }
-            }
-
-            // Priority: Touch > Hands. If touching, ignore hands updates.
-            if (isTouchActive) return;
-
-            const numHands = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
-            
-            if (numHands > 0) {
-                idleController.lastActionTime = Date.now();
-                // Reset to waiting if interrupted
-                if (idleController.state === 'PLAYING') {
-                      idleController.state = 'WAITING';
-                      idleController.currentAnim = null;
-                      interactionMode = 'IDLE'; // Ensure we reset mode if interrupted by hand
-                }
-            }
-
-            let finding3Fingers = false;
-            
-            if (numHands > 0) {
-                for(let i=0; i<numHands; i++) {
-                    if(checkThreeFingers(results.multiHandLandmarks[i])) finding3Fingers = true;
-                }
-            }
-            if(!finding3Fingers) swConfirmTimer = 0; 
-
-            if (sequenceActive) {
-                return; 
-            }
-
-            if (numHands === 2) {
-                const h1Raw = results.multiHandLandmarks[0];
-                const h2Raw = results.multiHandLandmarks[1];
-
-                if (checkHeartGesture(h1Raw, h2Raw)) {
-                    interactionMode = 'TWO_HEART';
-                    const h1Index = h1Raw[8], h2Index = h2Raw[8];
-                    const h1Thumb = h1Raw[4], h2Thumb = h2Raw[4];
-                    targetPosition.x = (1 - (h1Index.x + h2Index.x + h1Thumb.x + h2Thumb.x)/4) * width;
-                    targetPosition.y = (h1Index.y + h2Index.y + h1Thumb.y + h2Thumb.y)/4 * height;
-                    handStatus.innerText = "DUAL: HEART SHAPE";
-                } else {
-                    hand1State = getHandState(h1Raw, 1);
-                    hand2State = getHandState(h2Raw, 2);
-                    
-                    // Prioritize ALIGNING for Dual Hand Interaction
-                    const isLeftAligning = (hand1State === 'ALIGNING' || hand1State === 'OK_SIGN');
-                    const isRightAligning = (hand2State === 'ALIGNING' || hand2State === 'OK_SIGN');
-
-                    if (isLeftAligning && isRightAligning) {
-                        if (dualGalaxyTimer === 0) dualGalaxyTimer = Date.now();
-                        else if (Date.now() - dualGalaxyTimer > 3000) {
-                            interactionMode = 'TWO_BLACK_HOLE';
-                            dualGalaxyTimer = 0;
-                        }
-                    } else {
-                        dualGalaxyTimer = 0;
-                    }
-
-                    // Reset Black Hole mode if gestures lost
-                    if (interactionMode === 'TWO_BLACK_HOLE' && (!isLeftAligning || !isRightAligning)) {
-                        interactionMode = 'TWO_INDEPENDENT';
-                    }
-
-                    // Check Single Hand Timers for Solar System (Visual Feedback only if not dual)
-                    if (interactionMode !== 'TWO_BLACK_HOLE') {
-                        if (hand1State === 'ALIGNING') {
-                            if (okTimer1 === 0) okTimer1 = Date.now();
-                            else if (Date.now() - okTimer1 > 1000) hand1State = 'OK_SIGN';
-                        }
-                        if (hand2State === 'ALIGNING') {
-                            if (okTimer2 === 0) okTimer2 = Date.now();
-                            else if (Date.now() - okTimer2 > 1000) hand2State = 'OK_SIGN';
-                        }
-                    }
-
-                    if (interactionMode !== 'TWO_BLACK_HOLE') {
-                        if (hand1State === 'SINGULARITY' && hand2State === 'SINGULARITY') {
-                            interactionMode = 'TWO_WORMHOLE';
-                            const x1 = (1 - h1Raw[9].x) * width; 
-                            const y1 = h1Raw[9].y * height;
-                            const x2 = (1 - h2Raw[9].x) * width; 
-                            const y2 = h2Raw[9].y * height;
-                            targetPosition.x = x1; targetPosition.y = y1;
-                            targetPosition2.x = x2; targetPosition2.y = y2;
-                            handStatus.innerText = ">> INFINITY LOOP STABLE <<";
-                        } else {
-                            interactionMode = 'TWO_INDEPENDENT';
-                            const x1 = (1 - h1Raw[9].x) * width; 
-                            const y1 = h1Raw[9].y * height;
-                            const x2 = (1 - h2Raw[9].x) * width; 
-                            const y2 = h2Raw[9].y * height;
-                            targetPosition.x = x1; targetPosition.y = y1;
-                            targetPosition2.x = x2; targetPosition2.y = y2;
-                        }
-                    } else {
-                          // Update positions for black hole
-                        const x1 = (1 - h1Raw[9].x) * width; 
-                        const y1 = h1Raw[9].y * height;
-                        const x2 = (1 - h2Raw[9].x) * width; 
-                        const y2 = h2Raw[9].y * height;
-                        targetPosition.x = x1; targetPosition.y = y1;
-                        targetPosition2.x = x2; targetPosition2.y = y2;
-                    }
-
-                    // Check for Spider Family
-                    if (hand1State === 'SPIDER' && hand2State === 'SPIDER') {
-                         if (spiderFamilyTimer === 0) spiderFamilyTimer = Date.now();
-                         else if (Date.now() - spiderFamilyTimer > 3000) {
-                             interactionMode = 'TWO_SPIDER_FAMILY';
-                             spiderFamilyTimer = 0;
-                         } else {
-                             handStatus.innerText = "SUMMONING SPIDER FAMILY... (" + Math.ceil((3000 - (Date.now() - spiderFamilyTimer))/1000) + ")";
-                         }
-                    } else {
-                        spiderFamilyTimer = 0;
-                        if (interactionMode === 'TWO_SPIDER_FAMILY' && (hand1State !== 'SPIDER' || hand2State !== 'SPIDER')) {
-                             interactionMode = 'TWO_INDEPENDENT'; 
-                        }
-                    }
-                }
-            } else if (numHands === 1) {
-                const h1Raw = results.multiHandLandmarks[0];
-                interactionMode = 'ONE_SIMPLE';
-                hand1State = getHandState(h1Raw, 1);
-                
-                if (hand1State === 'ALIGNING') {
-                    if (okTimer1 === 0) okTimer1 = Date.now();
-                    else if (Date.now() - okTimer1 > 1000) hand1State = 'OK_SIGN';
-                }
-
-                targetPosition.x = (1 - h1Raw[9].x) * width;
-                targetPosition.y = h1Raw[9].y * height;
-                
-                if (hand1State === 'SPIDER') handStatus.innerText = "SINGLE: SPIDER-MAN";
-                else if (hand1State === 'PEACE') handStatus.innerText = "SINGLE: PEACE HAND";
-                else if (hand1State === 'REPULSOR') handStatus.innerText = "SINGLE: REPULSOR";
-                else if (hand1State === 'SINGULARITY') handStatus.innerText = "SINGLE: SINGULARITY";
-                else if (hand1State === 'THUMBS_UP') handStatus.innerText = "SINGLE: PIXEL HAND";
-                else if (hand1State === 'OK_SIGN') handStatus.innerText = "SINGLE: SOLAR SYSTEM";
-                else if (hand1State === 'ALIGNING') handStatus.innerText = "ALIGNING PLANETS...";
-                else if (hand1State === 'SW_CONFIRM') handStatus.innerText = "HOLD FOR STAR WARS";
-                else if (hand1State === 'RUDE') handStatus.innerText = "HOLD IT...";
-                else if (hand1State === 'RUDE_GESTURE') handStatus.innerText = "REALLY?! THAT'S RUDE!";
-                else if (hand1State === 'THUMBS_UP_LOADING') handStatus.innerText = "CHARGING...";
-                else handStatus.innerText = "SINGLE: GRAVITY";
-            
-            } else {
-                // Let updateIdleState handle the mode switching
-                if (interactionMode !== 'PLAYING_ANIMATION') {
-                    interactionMode = 'IDLE';
-                }
-            }
-        }
-
-        const hands = new Hands({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-        }});
-
-        // Mobile optimization: Use lighter model config if mobile
-        hands.setOptions({
-            maxNumHands: 2,
-            modelComplexity: isMobile ? 0 : 1, // Use Lite model on mobile
-            minDetectionConfidence: 0.6,
-            minTrackingConfidence: 0.6
-        });
-
-        hands.onResults(onResults);
-
-        window.onload = () => {
-            resize();
-            initStars();
-            initParticles();
-            window.addEventListener('resize', resize);
-            
-            // Add Touch Listeners
-            canvasElement.addEventListener('touchstart', handleTouchStart, {passive: false});
-            canvasElement.addEventListener('touchmove', handleTouchMove, {passive: false});
-            canvasElement.addEventListener('touchend', handleTouchEnd, {passive: false});
-
-            // Handle Splash Screen
-            const splash = document.getElementById('splash-screen');
-            setTimeout(() => {
-                splash.style.opacity = 0;
-                let progress = 0;
-                const loadInterval = setInterval(() => {
-                    progress += 5;
-                    if(progress > 90) clearInterval(loadInterval);
-                    loadingBar.style.width = `${progress}%`;
-                }, 50);
-            }, 2500); 
-            
-            // Mobile Optimization: Lower resolution for MediaPipe processing
-            const camWidth = isMobile ? 320 : 640;
-            const camHeight = isMobile ? 240 : 480;
-
-            let frameCounter = 0;
-
-            const camera = new Camera(videoElement, {
-                onFrame: async () => {
-                    if (isMobile) {
-                        frameCounter++;
-                        // Process only every 3rd frame on mobile to free up CPU for rendering
-                        if (frameCounter % 3 !== 0) return; 
-                    }
-                    await hands.send({image: videoElement});
-                },
-                width: camWidth,
-                height: camHeight
-            });
-
-            instructionText.style.display = 'block';
-            camera.start().then(() => {
-                introText.innerText = "SEARCHING FOR HAND PATTERN...";
-            }).catch(err => {
-                introText.innerText = "CAMERA ERROR / TOUCH ENABLED";
-                introText.style.color = "#FF0055";
-                // Even if camera fails, simulation runs and touch works
-            });
-
-            animate();
-        };
-
-    </script>
+</script>
 </body>
 </html>
