@@ -29,6 +29,7 @@
     <script type="text/babel" data-type="module" data-presets="react">
         // Import Firebase modules from CDN
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
         import { 
             getAuth, 
             signInWithPopup, 
@@ -73,15 +74,27 @@
 
         // --- CONFIGURATION ---
         const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'multiplayer-games-v1';
-        const FIREBASE_CONFIG = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        
+        // Your web app's Firebase configuration
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDga6DHEpVMni-RhL1khzLdWMQoCsi7EiU",
+            authDomain: "rock-paper-94822.firebaseapp.com",
+            projectId: "rock-paper-94822",
+            storageBucket: "rock-paper-94822.firebasestorage.app",
+            messagingSenderId: "519833321489",
+            appId: "1:519833321489:web:eb85d39ed77ccfd5c371b0",
+            measurementId: "G-2RFMG9S3FF"
+        };
+        
         const IS_CONFIGURED = !!FIREBASE_CONFIG;
 
         // Initialize Firebase
-        let app, auth, db;
+        let app, auth, db, analytics;
         if (IS_CONFIGURED) {
             app = initializeApp(FIREBASE_CONFIG);
             auth = getAuth(app);
             db = getFirestore(app);
+            analytics = getAnalytics(app);
         }
 
         // --- UTILS ---
