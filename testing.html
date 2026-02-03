@@ -513,15 +513,6 @@
             React.useEffect(() => {
                 if (!auth) return;
 
-                const initAuth = async () => {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        try {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } catch(e) { console.error("Token Auth Failed", e); }
-                    }
-                };
-                initAuth();
-
                 const unsubscribe = onAuthStateChanged(auth, async (u) => {
                     if (u) {
                         setUser(u);
